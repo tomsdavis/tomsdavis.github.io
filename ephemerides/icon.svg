@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="24" fill="#1a1a2e"/>
+  <g transform="translate(96,96)">
+    <!-- 8-pointed star -->
+    <polygon points="0,-60 12,-18 54,-36 22,-4 60,20 16,18 0,60 -16,18 -60,20 -22,-4 -54,-36 -12,-18"
+             fill="#c0c0ff" opacity="0.9"/>
+    <!-- Center dot -->
+    <circle r="6" fill="#e0e0ff"/>
+  </g>
+</svg>

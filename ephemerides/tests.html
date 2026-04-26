@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ephemerides - Tests</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 1rem;
+      margin: 0;
+    }
+    h1 { color: #c0c0ff; margin-bottom: 0.5rem; }
+    #summary { font-size: 1.2rem; margin-bottom: 1rem; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; }
+    .test-group { margin: 1rem 0; }
+    .test-group h2 { color: #9090d0; font-size: 1rem; margin-bottom: 0.3rem; }
+    .test-result { padding: 0.15rem 0; padding-left: 1rem; }
+    .test-result.fail { background: #3a1a1a; }
+    .error-detail { color: #ff8a80; padding-left: 2rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Ephemerides Tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+  <script type="module" src="tests.js"></script>
+</body>
+</html>

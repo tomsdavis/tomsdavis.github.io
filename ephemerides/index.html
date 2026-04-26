@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+  <title>Ephemerides</title>
+</head>
+<body>
+  <h1>Ephemerides</h1>
+
+  <div class="global-info">
+    <span>GMST: <span class="value" id="gmst-val">--:--:--</span></span>
+    <span>ERA: <span class="value" id="era-val">--</span></span>
+    <span id="api-status" class="status">API: no data</span>
+  </div>
+
+  <div class="settings">
+    <label>Lat
+      <input type="number" id="lat" step="0.0001">
+    </label>
+    <label>Lon
+      <input type="number" id="lon" step="0.0001">
+    </label>
+    <label>Date
+      <input type="date" id="date-input">
+    </label>
+    <label>Time
+      <input type="time" id="time-input" step="1">
+    </label>
+    <button id="now-btn">Now</button>
+    <button id="refresh-btn">Refresh API</button>
+  </div>
+
+  <h2>Fixed Stars</h2>
+  <div class="table-wrap">
+    <table class="ephem-table">
+      <colgroup>
+        <col style="width:7rem">
+        <col style="width:5rem">
+        <col style="width:5rem">
+        <col style="width:5.5rem">
+        <col style="width:5rem">
+        <col style="width:5rem">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Dec (&deg;)</th>
+          <th>RA (&deg;)</th>
+          <th>RA</th>
+          <th>Alt (&deg;)</th>
+          <th>Az (&deg;)</th>
+        </tr>
+      </thead>
+      <tbody id="stars-body"></tbody>
+    </table>
+  </div>
+
+  <h2>Solar System</h2>
+  <div class="table-wrap">
+    <table class="ephem-table">
+      <colgroup>
+        <col style="width:7rem">
+        <col style="width:5rem">
+        <col style="width:5rem">
+        <col style="width:5.5rem">
+        <col style="width:5rem">
+        <col style="width:5rem">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Dec (&deg;)</th>
+          <th>RA (&deg;)</th>
+          <th>RA</th>
+          <th>Alt (&deg;)</th>
+          <th>Az (&deg;)</th>
+        </tr>
+      </thead>
+      <tbody id="planets-body"></tbody>
+    </table>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
