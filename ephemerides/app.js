@@ -1,7 +1,7 @@
 import {
   dateToJD, dateObjectToJD, gmst, era, localSiderealTime,
   hourAngle, altAz, precess,
-  formatHM, formatGMST, formatDeg,
+  formatHM, formatGMST, formatDeg, formatJD,
   STARS, PLANETS,
 } from './astronomy.js';
 
@@ -15,6 +15,7 @@ const nowBtn = document.getElementById('now-btn');
 const refreshBtn = document.getElementById('refresh-btn');
 const gmstEl = document.getElementById('gmst-val');
 const eraEl = document.getElementById('era-val');
+const jdEl = document.getElementById('jd-val');
 const apiStatusEl = document.getElementById('api-status');
 const starsBody = document.getElementById('stars-body');
 const planetsBody = document.getElementById('planets-body');
@@ -216,6 +217,7 @@ function update(planetCache) {
   const eraDeg = era(jd);
   gmstEl.textContent = formatGMST(gmstDeg);
   eraEl.textContent = formatDeg(eraDeg);
+  jdEl.textContent = formatJD(jd);
 
   // Stars
   let starsHTML = '';

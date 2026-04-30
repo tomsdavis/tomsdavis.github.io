@@ -1,7 +1,7 @@
 import {
   dateToJD, gmst, era, localSiderealTime,
   hourAngle, altAz, precess,
-  degToHMS, sha, mod, formatHMS, formatGMST,
+  degToHMS, sha, mod, formatHMS, formatGMST, formatJD,
   J2000, STARS,
 } from './astronomy.js';
 
@@ -236,6 +236,32 @@ describe('Degree to HMS conversion', () => {
     const { h, m } = degToHMS(279.2348);
     assertEqual(h, 18, 'Hours');
     assertEqual(m, 36, 'Minutes');
+  });
+});
+
+describe('Julian Date formatting', () => {
+  test('J2000.0 formatted with space thousands separator', () => {
+    assertEqual(formatJD(2451545.0), '2 451 545.00');
+  });
+
+  test('Two decimal places preserved', () => {
+    assertEqual(formatJD(2461161.5), '2 461 161.50');
+  });
+
+  test('Rounds to two decimals', () => {
+    assertEqual(formatJD(2451545.678), '2 451 545.68');
+  });
+
+  test('Small value with no thousands', () => {
+    assertEqual(formatJD(123), '123.00');
+  });
+
+  test('Four-digit value gets one space', () => {
+    assertEqual(formatJD(1234), '1 234.00');
+  });
+
+  test('Zero', () => {
+    assertEqual(formatJD(0), '0.00');
   });
 });
 

@@ -163,6 +163,14 @@ function formatDeg(deg, decimals = 1) {
   return deg.toFixed(decimals) + '\u00B0';
 }
 
+function formatJD(jd) {
+  const [intPart, decPart] = jd.toFixed(2).split('.');
+  const sign = intPart.startsWith('-') ? '-' : '';
+  const digits = sign ? intPart.slice(1) : intPart;
+  const withSpaces = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${sign}${withSpaces}.${decPart}`;
+}
+
 function sha(raDeg) {
   return mod(360 - raDeg, 360);
 }
@@ -190,6 +198,6 @@ export {
   gmst, era, localSiderealTime,
   hourAngle, altAz,
   precess,
-  degToHMS, formatHMS, formatHM, formatGMST, formatDeg,
+  degToHMS, formatHMS, formatHM, formatGMST, formatDeg, formatJD,
   sha, mod, clamp, pad,
 };

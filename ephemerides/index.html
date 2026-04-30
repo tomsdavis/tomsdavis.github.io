@@ -18,6 +18,7 @@
   <div class="global-info">
     <span>GMST: <span class="value" id="gmst-val">--:--:--</span></span>
     <span>ERA: <span class="value" id="era-val">--</span></span>
+    <span>JD: <span class="value" id="jd-val">--</span></span>
     <span id="api-status" class="status">API: no data</span>
   </div>
 
@@ -36,31 +37,6 @@
     </label>
     <button id="now-btn">Now</button>
     <button id="refresh-btn">Refresh API</button>
-  </div>
-
-  <h2>Fixed Stars</h2>
-  <div class="table-wrap">
-    <table class="ephem-table">
-      <colgroup>
-        <col style="width:7rem">
-        <col style="width:5rem">
-        <col style="width:5rem">
-        <col style="width:5.5rem">
-        <col style="width:5rem">
-        <col style="width:5rem">
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Dec (&deg;)</th>
-          <th>RA (&deg;)</th>
-          <th>RA</th>
-          <th>Alt (&deg;)</th>
-          <th>Az (&deg;)</th>
-        </tr>
-      </thead>
-      <tbody id="stars-body"></tbody>
-    </table>
   </div>
 
   <h2>Solar System</h2>
@@ -85,6 +61,31 @@
         </tr>
       </thead>
       <tbody id="planets-body"></tbody>
+    </table>
+  </div>
+
+  <h2>Fixed Stars</h2>
+  <div class="table-wrap">
+    <table class="ephem-table">
+      <colgroup>
+        <col style="width:7rem">
+        <col style="width:5rem">
+        <col style="width:5rem">
+        <col style="width:5.5rem">
+        <col style="width:5rem">
+        <col style="width:5rem">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Dec (&deg;)</th>
+          <th>RA (&deg;)</th>
+          <th>RA</th>
+          <th>Alt (&deg;)</th>
+          <th>Az (&deg;)</th>
+        </tr>
+      </thead>
+      <tbody id="stars-body"></tbody>
     </table>
   </div>
 
