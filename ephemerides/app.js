@@ -145,41 +145,25 @@ async function fetchPlanet(planet, jd) {
   return coords;
 }
 
-async function fetchAllPlanets(jd, forceRefresh = false) {
-  const cache = loadCache();
-  const stale = isCacheStale(cache);
-  const needsFetch = forceRefresh || stale;
+const RETRY_DELAYS_MS = [1000, 3000];
 
-  if (needsFetch) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchPlanetWithRetry(planet, jd) {
+  const attempts = RETRY_DELAYS_MS.length + 1;
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
     try {
-      const results = await Promise.allSettled(
-        PLANETS.map((p) => fetchPlanet(p, jd))
-      );
-
-      const newData = {};
-      results.forEach((result, i) => {
-        const name = PLANETS[i].name;
-        if (result.status === 'fulfilled') {
-          newData[name] = result.value;
-        } else {
-          // Keep old cached data on failure
-          if (cache.data && cache.data[name]) {
-            newData[name] = cache.data[name];
-          }
-          console.warn(`Failed to fetch ${name}:`, result.reason);
-        }
-      });
-
-      const newCache = { data: newData, timestamp: Date.now() };
-      saveCache(newCache);
-      return newCache;
+      return await fetchPlanet(planet, jd);
     } catch (e) {
-      console.warn('API fetch failed, using cache:', e);
-      return cache;
+      lastError = e;
+      console.warn(`fetch ${planet.name} attempt ${i + 1}/${attempts} failed:`, e.message);
+      if (i < attempts - 1) await sleep(RETRY_DELAYS_MS[i]);
     }
   }
-
-  return cache;
+  throw lastError;
 }
 
 // ============= Computation =============
@@ -233,9 +217,15 @@ function update(planetCache) {
   const cacheData = planetCache.data || {};
   for (const planet of PLANETS) {
     const cached = cacheData[planet.name];
+    const pending = pendingPlanets.has(planet.name);
     if (cached) {
       const data = computeBody(cached.ra, cached.dec, jd, lat, lon);
       planetsHTML += renderRow(planet.name, data, data.alt < 0);
+    } else if (pending) {
+      planetsHTML += `<tr>
+        <td class="name">${planet.name}</td>
+        <td colspan="5" style="color:#888">loading…</td>
+      </tr>`;
     } else {
       planetsHTML += `<tr>
         <td class="name">${planet.name}</td>
@@ -244,6 +234,8 @@ function update(planetCache) {
     }
   }
   planetsBody.innerHTML = planetsHTML;
+
+  refreshBtn.textContent = pendingPlanets.size > 0 ? 'Refreshing…' : 'Refresh API';
 
   // API status
   updateApiStatus(planetCache);
@@ -263,9 +255,39 @@ function updateApiStatus(cache) {
   apiStatusEl.className = stale ? 'status stale' : 'status';
 }
 
-// ============= Event Handlers =============
+// ============= Streaming Refresh =============
 
+const pendingPlanets = new Set();
 let currentCache = loadCache();
+
+function refreshPlanets(jd, forceRefresh = false) {
+  if (!forceRefresh && !isCacheStale(currentCache)) {
+    update(currentCache);
+    return;
+  }
+
+  PLANETS.forEach((p) => pendingPlanets.add(p.name));
+  update(currentCache);
+
+  const newData = { ...(currentCache.data || {}) };
+  let firstSuccessTimestamp = null;
+
+  PLANETS.forEach(async (planet) => {
+    try {
+      const coords = await fetchPlanetWithRetry(planet, jd);
+      newData[planet.name] = coords;
+      if (firstSuccessTimestamp === null) firstSuccessTimestamp = Date.now();
+      currentCache = { data: newData, timestamp: firstSuccessTimestamp };
+      saveCache(currentCache);
+    } catch (e) {
+      console.warn(`Failed to fetch ${planet.name} after retries:`, e.message);
+    }
+    pendingPlanets.delete(planet.name);
+    update(currentCache);
+  });
+}
+
+// ============= Event Handlers =============
 
 function onInputChange() {
   saveLocation();
@@ -282,38 +304,26 @@ nowBtn.addEventListener('click', () => {
   update(currentCache);
 });
 
-refreshBtn.addEventListener('click', async () => {
-  refreshBtn.disabled = true;
-  refreshBtn.textContent = 'Refreshing...';
+refreshBtn.addEventListener('click', () => {
   const jd = dateObjectToJD(getSelectedDate());
-  currentCache = await fetchAllPlanets(jd, true);
-  update(currentCache);
-  refreshBtn.disabled = false;
-  refreshBtn.textContent = 'Refresh API';
+  refreshPlanets(jd, true);
 });
 
 // ============= Init =============
 
-async function init() {
-  // Register service worker
+function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch((e) =>
       console.warn('SW registration failed:', e)
     );
   }
 
-  // Load saved location
   loadLocation();
-
-  // Set current time
   setNow();
-
-  // Fetch planet data (will use cache if fresh)
-  const jd = dateObjectToJD(getSelectedDate());
-  currentCache = await fetchAllPlanets(jd);
-
-  // Initial render
   update(currentCache);
+
+  const jd = dateObjectToJD(getSelectedDate());
+  refreshPlanets(jd, false);
 }
 
 init();

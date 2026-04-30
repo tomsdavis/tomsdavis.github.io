@@ -24,6 +24,7 @@ A GitHub Pages site hosting independent progressive web apps (tools/calculators)
     icon.svg
     tests.html            # In-browser test runner
     tests.js              # Also runnable via: deno run --allow-read ephemerides/tests.js
+    private/              # Gitignored: change requests, scratch notes, anything not for the deploy
   /next-tool/             # Future tools follow same pattern
 ```
 
@@ -42,6 +43,13 @@ A GitHub Pages site hosting independent progressive web apps (tools/calculators)
 - Test pure calculation functions; don't test DOM or network calls
 - Run tests by opening `tests.html` in a browser
 
+## Local Development
+- Serve from the repo root: `python3 -m http.server 8000`
+- App: http://localhost:8000/ephemerides/
+- Tests: http://localhost:8000/ephemerides/tests.html
+- A static server is required (ES module imports won't work over `file://`)
+
 ## Deployment
 - GitHub Pages from `main` branch (personal site repo)
 - No build step — files served as-is
+- Bump `CACHE_NAME` in each tool's `sw.js` when shipping changes to cached static assets, so the activate handler evicts the old cache on next load
