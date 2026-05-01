@@ -58,3 +58,4 @@ A GitHub Pages site hosting independent progressive web apps (tools/calculators)
 - No build step at deploy time — files served as-is
 - For vanilla tools: bump `CACHE_NAME` in each tool's `sw.js` when shipping changes to cached static assets, so the activate handler evicts the old cache on next load
 - For pre-built tools (e.g. solfa): rebuild locally before commit (`cd solfa-src && deno task build`); the adapter writes to `../solfa/` and the SW cache key rotates per build automatically
+- `.nojekyll` at the repo root disables GitHub Pages' Jekyll processing — required so paths beginning with `_` (e.g. SvelteKit's `_app/`) are served. Don't remove it.
