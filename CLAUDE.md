@@ -4,17 +4,18 @@
 A GitHub Pages site hosting independent progressive web apps (tools/calculators). Each tool is self-contained in its own subdirectory. The home page links to them.
 
 ## Tech Stack & Constraints
-- **Vanilla HTML + CSS + JavaScript only** — no frameworks, no build tools, no npm
+- **Vanilla HTML + CSS + JavaScript** is the default — no frameworks, no build tools, no npm
 - Functional-programming-style JS preferred (pure functions, immutable data, map/filter/reduce)
 - Each PWA is self-contained: own HTML, CSS, JS, manifest, service worker
-- Deploys from `main` branch to GitHub Pages
+- Deploys from `main` branch to GitHub Pages — no build step at deploy time
+- **Exception: pre-built apps.** A tool may use a build toolchain locally if its committed deploy artifact is plain static files (HTML/CSS/JS/assets) under its own subdirectory. Source lives in a sibling `<tool>-src/` directory; the built output is committed at `<tool>/`. See `solfa-src/` → `solfa/`.
 
 ## Project Structure
 ```
 /
   index.html              # Home page linking to all tools
   CLAUDE.md
-  /ephemerides/           # First tool
+  /ephemerides/           # First tool — vanilla, source = deploy
     index.html
     style.css
     astronomy.js          # Pure calculation functions + star catalog (ES module)
@@ -25,7 +26,10 @@ A GitHub Pages site hosting independent progressive web apps (tools/calculators)
     tests.html            # In-browser test runner
     tests.js              # Also runnable via: deno run --allow-read ephemerides/tests.js
     private/              # Gitignored: change requests, scratch notes, anything not for the deploy
-  /next-tool/             # Future tools follow same pattern
+  /solfa-src/             # Pre-built tool: SvelteKit source (Deno + Vite + adapter-static)
+                          # Run `deno task build` here to emit ../solfa/. See solfa-src/CLAUDE.md.
+  /solfa/                 # Pre-built tool: committed deploy artifact (plain static files)
+  /next-tool/             # Future tools follow either pattern
 ```
 
 ## Coding Conventions
@@ -50,6 +54,7 @@ A GitHub Pages site hosting independent progressive web apps (tools/calculators)
 - A static server is required (ES module imports won't work over `file://`)
 
 ## Deployment
-- GitHub Pages from `main` branch (personal site repo)
-- No build step — files served as-is
-- Bump `CACHE_NAME` in each tool's `sw.js` when shipping changes to cached static assets, so the activate handler evicts the old cache on next load
+- GitHub Pages from `main` branch (user site repo `tomsdavis.github.io`, served at `https://tomsdavis.github.io/`)
+- No build step at deploy time — files served as-is
+- For vanilla tools: bump `CACHE_NAME` in each tool's `sw.js` when shipping changes to cached static assets, so the activate handler evicts the old cache on next load
+- For pre-built tools (e.g. solfa): rebuild locally before commit (`cd solfa-src && deno task build`); the adapter writes to `../solfa/` and the SW cache key rotates per build automatically

@@ -1,0 +1,55 @@
+:root {
+	/* Note colours — 12-tone chromatic, vibrant and distinguishable */
+	--note-c: #e74c3c;
+	--note-cs: #e67e22;
+	--note-d: #f1c40f;
+	--note-ds: #2ecc71;
+	--note-e: #1abc9c;
+	--note-f: #3498db;
+	--note-fs: #2980b9;
+	--note-g: #9b59b6;
+	--note-gs: #8e44ad;
+	--note-a: #e84393;
+	--note-as: #fd79a8;
+	--note-b: #fdcb6e;
+
+	/* Layout */
+	--toolbar-height: 48px;
+	--palette-width: 80px;
+	--cell-size: 64px;
+	--cell-gap: 4px;
+	--cell-radius: 8px;
+
+	/* Theme */
+	--bg: #1a1a2e;
+	--bg-surface: #16213e;
+	--bg-cell: #0f3460;
+	--bg-cell-empty: #1a1a3e;
+	--text: #eee;
+	--text-muted: #999;
+	--border: #333;
+	--accent: #e94560;
+
+	/* Playing state */
+	--playing-glow: 0 0 12px 4px rgba(233, 69, 96, 0.6);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	overflow: hidden;
+	background: var(--bg);
+	color: var(--text);
+	font-family: system-ui, -apple-system, sans-serif;
+	touch-action: none;
+	-webkit-user-select: none;
+	user-select: none;
+}

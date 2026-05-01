@@ -1,0 +1,26 @@
+{
+  "tasks": {
+    "dev": "deno run -A npm:vite dev",
+    "build": "deno run -A npm:vite build",
+    "preview": "deno run -A npm:vite preview",
+    "check": "deno run -A npm:svelte-check --tsconfig ./tsconfig.json",
+    "test": "deno run -A npm:vitest run",
+    "test:watch": "deno run -A npm:vitest"
+  },
+  "imports": {
+    "@sveltejs/adapter-static": "npm:@sveltejs/adapter-static@^3",
+    "@sveltejs/kit": "npm:@sveltejs/kit@^2",
+    "@sveltejs/vite-plugin-svelte": "npm:@sveltejs/vite-plugin-svelte@^4",
+    "svelte": "npm:svelte@^5",
+    "svelte-check": "npm:svelte-check@^4",
+    "typescript": "npm:typescript@^5",
+    "vite": "npm:vite@^6",
+    "vitest": "npm:vitest@^3",
+    "tslib": "npm:tslib@^2"
+  },
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "verbatimModuleSyntax": true
+  },
+  "nodeModulesDir": "auto"
+}
