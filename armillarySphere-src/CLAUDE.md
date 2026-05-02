@@ -70,13 +70,15 @@ tools/
 public/
   manifest.webmanifest
   icons/                    # 192/512/maskable-512/apple-touch-180 PNGs
-  bsc5.bin                  # (not yet built)
-  bsc5-names.json           # (not yet built)
-  constellation-{lines,boundaries}.json  # (not yet built)
-  textures/                 # earth-day.jpg, earth-night.jpg (not yet committed)
+  bsc5.bin                  # (pass 3)
+  bsc5-names.json           # (pass 3)
+  constellation-{lines,boundaries}.json  # (pass 4)
+  textures/                 # earth-day.jpg, earth-night.jpg (committed)
 tests/                      # Vitest — pure logic only, no DOM/network
 requirements/               # Gitignored; canonical spec lives here locally
-data/source/                # Gitignored; raw catalogue inputs
+data/source/                # Spec §6.1: BSC5 etc. should be committed here.
+                            # Currently still in .gitignore from pass 1; flip
+                            # before committing bsc5.dat in pass 3.
 ```
 
 ## Key Architecture Decisions
@@ -101,8 +103,7 @@ data/source/                # Gitignored; raw catalogue inputs
   directory is the committed deploy artifact (per the repo's pre-built-tool
   pattern; see root `CLAUDE.md`).
 - `vite-plugin-pwa` rotates the service-worker cache key per build, so old caches
-  evict on activate. The home page (`../index.html`) should not link to this tool
-  until there's a recognisable scene to land on.
+  evict on activate. `../index.html` already links to this tool from the home page.
 - `.nojekyll` at the repo root must remain in place (GH Pages otherwise 404s
   Vite's hashed `assets/` paths if Jekyll ever decides they look like underscore
   prefixes; safer to keep it on regardless).
@@ -163,6 +164,42 @@ Working end to end:
 - `rotation` — `(earthY − celestialY) ≡ gast` invariant.
 - `camera-controls` — pure clamp / drag / wheel helpers.
 - `persistence` — debounce coalescing, non-persisted-slice gating.
+
+## Gotchas — things we burned time on, don't re-burn it
+
+These are baked into the source code with comments at the relevant lines, but
+collected here for fast lookup before debugging.
+
+- **`ShaderMaterial` does NOT auto-inject linear→sRGB conversion.** Built-in
+  Three.js materials get this for free; custom ones don't. Any fragment shader
+  that samples a texture with `colorSpace = SRGBColorSpace` must end with
+  `#include <colorspace_fragment>` or the canvas displays raw linear values
+  (everything looks dim and slightly desaturated — oceans render dark green
+  instead of blue). Fixed in `src/shaders/earth.frag.glsl`.
+- **Trackball drag convention: dx > 0 ⇒ azimuth DECREASES.** A feature under
+  the cursor follows the cursor; the camera orbits opposite. Don't "simplify"
+  the negation in `applyDrag`. See `src/controls/camera-controls.ts`.
+- **`astronomy-engine` v2 `Equator()` requires an `Observer`, not `null`.** We
+  pass a sentinel `Observer(0, 0, 0)` as a geocentre proxy. Solar parallax is
+  ~9 arcsec, well below any tolerance we care about. See `ephemeris.ts`.
+- **State store uses `Object.is` for change detection.** Replace whole nested
+  objects (`camera`, `layers`) when updating: `set({ camera: { ...prev, azimuth: x } })`.
+  Don't mutate in place — subscribers won't fire.
+- **Persistence allow-list is explicit.** `src/persistence.ts` has
+  `PERSISTED_SLICES = ['instant', 'camera', 'magnitudeLimit', 'rotationMode']`.
+  Adding a new persistable slice means adding it there *and* extending
+  `PersistedState` in `url-state.ts` *and* the envelope in `storage.ts`.
+- **Sun direction in fixed-Earth mode rotates with the celestial sphere.** It
+  lives at sunDir RA/Dec on the celestial sphere; in rotating-Earth mode the
+  sphere is fixed, but in fixed-Earth mode it rotates by `-gast`, taking the
+  Sun direction with it so the terminator tracks the actual instant. See the
+  `applyAxisAngle(DEFAULT_UP, celestialY)` line in `scene/scene.ts`.
+- **Greenwich is at world +Z when `earthRoot.rotation.y = 0`.** Earth mesh has
+  baked-in `rotation.y = -π/2` to put the texture's u=0.5 (Greenwich on a
+  standard equirectangular NASA Blue Marble) at +Z in the earth-root frame.
+  Don't change without re-tracing the coordinate plumbing.
+- **Vite imports GLSL with `?raw`.** See `import vertexShader from '../shaders/earth.vert.glsl?raw'`
+  in `scene/earth.ts`. Without `?raw` Vite tries to parse the file.
 
 ## Out of Scope (v1, per spec §9)
 
