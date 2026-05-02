@@ -114,14 +114,55 @@ data/source/                # Gitignored; raw catalogue inputs
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## Known Gaps (deliberate, will fill in as implementation progresses)
+## What's Real Today (post pass 2)
 
-- No Earth textures yet — `scene/earth.ts` is a stub.
-- No star catalogue yet — `tools/build-catalogue.ts` throws.
-- No constellation data yet — `tools/build-constellations.ts` throws.
-- No UI controls yet — `src/ui/*` are stubs.
-- `src/main.ts` currently renders a placeholder Earth (normal-material) + a
-  wireframe celestial sphere just to confirm the toolchain end-to-end.
+Working end to end:
+
+- Earth (unit-radius sphere) with NASA Blue/Black Marble textures and a
+  custom day/night terminator shader (~6° soft transition).
+- Celestial-sphere placeholder (faint wireframe at R_cs = 2). Stars and
+  constellations are deferred to later passes.
+- Sun direction comes from astronomy-engine via `src/astronomy/ephemeris.ts`
+  and is rotated with the celestial sphere in fixed-Earth mode so the
+  terminator tracks the actual instant in either visualisation.
+- Rotation-mode toggle (rotating Earth vs fixed Earth) backed by a pure
+  `rotationFor(mode, gast)` helper with TDD'd invariants.
+- Pointer Events orbit camera (drag rotate, wheel zoom; pinch and inertia
+  deferred). Reset-view button.
+- Bottom drawer with the essentials: UTC datetime, "Now", play/pause,
+  rate ladder, rotation toggle, reset view.
+- Animation loop advances `state.instant` by `rate × dt` when playing.
+- URL fragment + localStorage persistence for date/camera/magnitude/rotation,
+  debounced. URL takes precedence on load. Layer toggles and playing/rate
+  are not persisted by design.
+
+## What Still Needs Filling In
+
+- `tools/build-catalogue.ts` (BSC5 → binary) — throws.
+- `tools/build-constellations.ts` (Stellarium / IAU → JSON) — throws.
+- `scene/stars.ts`, `scene/planets.ts`, `scene/moon.ts`, `scene/lines.ts`,
+  `scene/constellations.ts` — stubs.
+- `controls/time-controller.ts` is just `RATES` + `advance()`; play/pause
+  and the ±1 year scrub bar are wired in `ui/drawer.ts` directly for now.
+- `ui/sliders.ts`, `ui/toggles.ts`, `ui/labels.ts` — stubs. The drawer is
+  a single row in pass 2; the collapsible sheet pattern for phones lands
+  later.
+- Camera pinch zoom, drag inertia, and elevation cardinal markers.
+- Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
+
+## Test Coverage
+
+`deno task test` runs Vitest (8 files, 59 tests as of pass 2):
+
+- `state` — store subscriptions, defaults, slice notification semantics.
+- `url-state` — fragment encode/decode incl. rotation-mode codes.
+- `storage` — versioned envelope + URL-precedence merge.
+- `ephemeris` — Sun at the 2000 equinox/solstices; GAST at J2000.0;
+  sidereal-day round-trip.
+- `time-controller` — `advance()` at the documented rates.
+- `rotation` — `(earthY − celestialY) ≡ gast` invariant.
+- `camera-controls` — pure clamp / drag / wheel helpers.
+- `persistence` — debounce coalescing, non-persisted-slice gating.
 
 ## Out of Scope (v1, per spec §9)
 
