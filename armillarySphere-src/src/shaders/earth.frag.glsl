@@ -25,4 +25,11 @@ void main() {
 
   vec3 lit = mix(night * nightGain, day, mix(blend, 1.0, 1.0 - uTerminator));
   gl_FragColor = vec4(lit, 1.0);
+
+  // Three.js textures with colorSpace=SRGB are decoded to linear at sample
+  // time, so all of the math above runs in linear. Hand off to the renderer's
+  // outputColorSpace conversion (linear → sRGB for our setup) before writing
+  // to the framebuffer; otherwise the canvas shows raw linear values that
+  // read as dim, slightly desaturated versions of the texture colours.
+  #include <colorspace_fragment>
 }

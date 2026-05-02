@@ -3874,6 +3874,13 @@ void main() {
 
   vec3 lit = mix(night * nightGain, day, mix(blend, 1.0, 1.0 - uTerminator));
   gl_FragColor = vec4(lit, 1.0);
+
+  // Three.js textures with colorSpace=SRGB are decoded to linear at sample
+  // time, so all of the math above runs in linear. Hand off to the renderer's
+  // outputColorSpace conversion (linear → sRGB for our setup) before writing
+  // to the framebuffer; otherwise the canvas shows raw linear values that
+  // read as dim, slightly desaturated versions of the texture colours.
+  #include <colorspace_fragment>
 }
 `;async function mp(){const i=new fp,[t,e]=await Promise.all([zo(i,"textures/earth-day.jpg"),zo(i,"textures/earth-night.jpg")]),n={uDayMap:{value:t},uNightMap:{value:e},uSunDirWorld:{value:new O(1,0,0)},uTerminator:{value:1}},r=new an({vertexShader:dp,fragmentShader:pp,uniforms:n}),s=new Be(new Ur(1,96,64),r);return s.rotation.y=-Math.PI/2,{mesh:s,setSunDirection(a){n.uSunDirWorld.value.copy(a)},setTerminatorEnabled(a){n.uTerminator.value=a?1:0},dispose(){t.dispose(),e.dispose(),r.dispose(),s.geometry.dispose()}}}function zo(i,t){return new Promise((e,n)=>{i.load(t,r=>{r.colorSpace=Re,r.anisotropy=8,e(r)},void 0,n)})}const _p=2;function gp(){const i=new On,t=new Be(new Ur(_p,48,32),new Pa({color:2241365,transparent:!0,opacity:.15,side:pe,wireframe:!0}));return i.add(t),{group:i,setOpacity(e){t.material.opacity=e},dispose(){t.geometry.dispose(),t.material.dispose()}}}function vp(i,t){switch(i){case"rotating-earth":return{earthY:t,celestialY:0};case"fixed-earth":return{earthY:0,celestialY:-t}}}/**
     @preserve
