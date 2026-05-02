@@ -5,8 +5,10 @@
 import * as THREE from 'three';
 import { createEarth, type EarthHandle } from './earth';
 import { createCelestialSphere, type CelestialSphereHandle } from './celestial-sphere';
+import { createStars, type StarsHandle } from './stars';
 import { rotationFor } from './rotation';
 import { sunDirection, gast } from '../astronomy/ephemeris';
+import { loadCatalogue } from '../astronomy/catalogue-loader';
 import type { AppState } from '../state';
 
 export interface SceneHandle {
@@ -14,6 +16,7 @@ export interface SceneHandle {
   camera: THREE.PerspectiveCamera;
   earth: EarthHandle;
   celestial: CelestialSphereHandle;
+  stars: StarsHandle;
   earthRoot: THREE.Group;
   celestialRoot: THREE.Group;
   /** Apply state to the scene (rotation, sun direction, opacity, …). */
@@ -39,17 +42,24 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
   const celestialRoot = new THREE.Group();
   scene.add(earthRoot, celestialRoot);
 
-  const earth = await createEarth();
+  const [earth, catalogue] = await Promise.all([
+    createEarth(),
+    loadCatalogue('bsc5.bin'),
+  ]);
   earthRoot.add(earth.mesh);
 
   const celestial = createCelestialSphere();
   celestialRoot.add(celestial.group);
+
+  const stars = createStars(catalogue);
+  celestialRoot.add(stars.points);
 
   return {
     renderer,
     camera,
     earth,
     celestial,
+    stars,
     earthRoot,
     celestialRoot,
 
@@ -71,6 +81,7 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
 
       earth.setTerminatorEnabled(state.layers.terminator);
       celestial.setOpacity(state.celestialOpacity);
+      stars.setMagnitudeLimit(state.magnitudeLimit);
 
       const { azimuth, elevation, distance } = state.camera;
       camera.position.set(
@@ -89,11 +100,13 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      stars.setPixelRatio(renderer.getPixelRatio());
     },
 
     dispose() {
       earth.dispose();
       celestial.dispose();
+      stars.dispose();
       renderer.dispose();
     },
   };
