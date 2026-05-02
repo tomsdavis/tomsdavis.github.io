@@ -91,3 +91,25 @@ html, body {
   cursor: pointer;
   accent-color: #6a5a8e;
 }
+
+#star-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+
+#star-labels span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: #d8d8e8;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  user-select: none;
+  will-change: transform;
+}

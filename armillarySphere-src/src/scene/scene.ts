@@ -17,6 +17,9 @@ export interface SceneHandle {
   earth: EarthHandle;
   celestial: CelestialSphereHandle;
   stars: StarsHandle;
+  /** The parsed BSC5 catalogue, kept on the handle so the label overlay can
+   *  look up world-space positions for named stars without re-fetching. */
+  catalogue: import('../astronomy/catalogue-loader').Catalogue;
   earthRoot: THREE.Group;
   celestialRoot: THREE.Group;
   /** Apply state to the scene (rotation, sun direction, opacity, …). */
@@ -60,6 +63,7 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
     earth,
     celestial,
     stars,
+    catalogue,
     earthRoot,
     celestialRoot,
 

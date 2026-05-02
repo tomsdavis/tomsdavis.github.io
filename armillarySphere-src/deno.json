@@ -6,7 +6,8 @@
     "check": "deno run -A npm:typescript/tsc --noEmit -p tsconfig.json",
     "test": "deno run -A npm:vitest run",
     "test:watch": "deno run -A npm:vitest",
-    "build-catalogue": "deno run -A tools/build-catalogue.ts"
+    "build-catalogue": "deno run -A tools/build-catalogue.ts",
+    "build-names": "deno run -A tools/build-names.ts"
   },
   "imports": {
     "three": "npm:three@^0.169",
