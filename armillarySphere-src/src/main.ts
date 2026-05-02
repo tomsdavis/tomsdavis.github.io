@@ -1,8 +1,13 @@
 import { createScene } from './scene/scene';
 import { createStore } from './state';
 import { resolveInitialState } from './storage';
+import { attachCameraControls } from './controls/camera-controls';
+import { attachPersistence } from './persistence';
+import { attachDrawer } from './ui/drawer';
+import { advance } from './controls/time-controller';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
+const overlay = document.getElementById('ui-overlay') as HTMLDivElement;
 
 const store = createStore(
   resolveInitialState({
@@ -12,12 +17,24 @@ const store = createStore(
 );
 
 const scene = await createScene(canvas);
+const cameraControls = attachCameraControls({ element: canvas, store });
+attachDrawer({ container: overlay, store, cameraControls });
+attachPersistence(store, globalThis.localStorage);
 
 const resize = () => scene.resize(window.innerWidth, window.innerHeight);
 resize();
 window.addEventListener('resize', resize);
 
-scene.renderer.setAnimationLoop(() => {
+let lastT = performance.now();
+scene.renderer.setAnimationLoop((tNow) => {
+  const dt = (tNow - lastT) / 1000;
+  lastT = tNow;
+
+  const s = store.get();
+  if (s.playing && dt > 0) {
+    store.set({ instant: advance(s.instant, s.rate, dt) });
+  }
+
   scene.apply(store.get());
   scene.render();
 });

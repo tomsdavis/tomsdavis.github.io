@@ -30,6 +30,10 @@ export interface AppState {
   // §4.1 — rotating Earth (default) vs fixed Earth with sky rotating westward
   rotationMode: RotationMode;
 
+  // §4.3 — time playback (NOT persisted; resets to paused on each visit)
+  playing: boolean;
+  rate: number;
+
   // §4.6, §4.7 — independently toggleable layers
   layers: Layers;
 }
@@ -50,6 +54,8 @@ export function defaultState(): AppState {
     magnitudeLimit: 5.0,
     celestialOpacity: 0.15,
     rotationMode: 'rotating-earth',
+    playing: false,
+    rate: 3600,
     layers: {
       equator: true,
       ecliptic: true,
