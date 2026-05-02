@@ -27,14 +27,17 @@ describe('clampCamera', () => {
 });
 
 describe('applyDrag', () => {
-  it('rotates azimuth by sensitivity * dx', () => {
+  // Trackball / drag-with-finger convention: a feature on the globe directly
+  // under the cursor should follow the cursor. That means the camera orbits
+  // the OPPOSITE way from the cursor — drag right ⇒ azimuth decreases.
+  it('drag right (dx > 0) decreases azimuth so the globe surface follows the cursor', () => {
     const next = applyDrag({ azimuth: 0, elevation: 0, distance: 3 }, 100, 0, 0.005);
-    expect(next.azimuth).toBeCloseTo(0.5);
+    expect(next.azimuth).toBeCloseTo(-0.5);
     expect(next.elevation).toBe(0);
     expect(next.distance).toBe(3);
   });
 
-  it('rotates elevation by sensitivity * dy (inverted: drag up → look down from above)', () => {
+  it('drag down (dy > 0) raises the camera so the front of the globe tilts down toward the cursor', () => {
     const next = applyDrag({ azimuth: 0, elevation: 0, distance: 3 }, 0, 100, 0.005);
     expect(next.elevation).toBeCloseTo(0.5);
   });

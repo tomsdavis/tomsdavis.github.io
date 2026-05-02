@@ -23,8 +23,10 @@ export function clampCamera(c: CameraSlice): CameraSlice {
 }
 
 export function applyDrag(c: CameraSlice, dx: number, dy: number, sensitivity = DRAG_SENSITIVITY): CameraSlice {
+  // Trackball convention: dx > 0 (drag right) orbits the camera LEFT so the
+  // globe's surface follows the cursor rather than fleeing it.
   return clampCamera({
-    azimuth: c.azimuth + dx * sensitivity,
+    azimuth: c.azimuth - dx * sensitivity,
     elevation: c.elevation + dy * sensitivity,
     distance: c.distance,
   });
