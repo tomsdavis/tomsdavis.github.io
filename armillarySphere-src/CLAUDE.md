@@ -115,23 +115,42 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## What's Real Today (post pass 2)
+## What's Real Today (post pass 3)
 
 Working end to end:
 
 - Earth (unit-radius sphere) with NASA Blue/Black Marble textures and a
   custom day/night terminator shader (~6° soft transition).
-- Celestial-sphere placeholder (faint wireframe at R_cs = 2). Stars and
-  constellations are deferred to later passes.
-- Sun direction comes from astronomy-engine via `src/astronomy/ephemeris.ts`
-  and is rotated with the celestial sphere in fixed-Earth mode so the
+- Celestial sphere at **R_CS = 1.1** — tightened from the spec's working
+  default of 2 in pass 3 so a star sits visually adjacent to its
+  sub-stellar point on Earth from any external angle. Default camera
+  distance dropped to 2.5 (was 4.5) and `CAMERA_MAX_DISTANCE` to 3 (was
+  5) so the new framing keeps Earth at a useful size.
+- Yale BSC5 catalogue → packed binary build pipeline
+  (`tools/build-catalogue.ts`) → runtime parser + per-star size/colour
+  helpers (`src/astronomy/catalogue-loader.ts`) → 9096 stars rendered
+  as a single THREE.Points with a custom shader (clamped linear-in-mag
+  size, B−V → blackbody colour, magnitude-limit discard via uniform,
+  additive blending).
+- Magnitude-limit slider in the drawer (range 0.0–6.5, default 5.0)
+  bound to `state.magnitudeLimit`. The shader uniform path makes slider
+  changes a one-uniform write rather than a geometry reupload.
+- IAU named-star label overlay for the brightest 46 stars (mag ≤ 2.0).
+  Names from IAU WGSN's Catalog of Star Names (`tools/build-names.ts`,
+  joins to BSC5 via "HR ###" parsed from the Designation column).
+  Per-frame projection in `src/ui/labels.ts`; respects
+  `state.layers.starLabels` and `state.magnitudeLimit`.
+- Sun direction from astronomy-engine via `src/astronomy/ephemeris.ts`,
+  rotated with the celestial sphere in fixed-Earth mode so the
   terminator tracks the actual instant in either visualisation.
 - Rotation-mode toggle (rotating Earth vs fixed Earth) backed by a pure
   `rotationFor(mode, gast)` helper with TDD'd invariants.
 - Pointer Events orbit camera (drag rotate, wheel zoom; pinch and inertia
   deferred). Reset-view button.
-- Bottom drawer with the essentials: UTC datetime, "Now", play/pause,
-  rate ladder, rotation toggle, reset view.
+- Bottom drawer with: UTC datetime, "Now", play/pause, rate ladder,
+  rotation toggle, reset view, magnitude slider. Wraps to two rows on
+  the default viewport — the intended behaviour for the eventual
+  collapsible bottom-sheet.
 - Animation loop advances `state.instant` by `rate × dt` when playing.
 - URL fragment + localStorage persistence for date/camera/magnitude/rotation,
   debounced. URL takes precedence on load. Layer toggles and playing/rate
@@ -139,21 +158,29 @@ Working end to end:
 
 ## What Still Needs Filling In
 
-- `tools/build-catalogue.ts` (BSC5 → binary) — throws.
-- `tools/build-constellations.ts` (Stellarium / IAU → JSON) — throws.
-- `scene/stars.ts`, `scene/planets.ts`, `scene/moon.ts`, `scene/lines.ts`,
-  `scene/constellations.ts` — stubs.
+- **Pass 4 territory (constellations):** `tools/build-constellations.ts`
+  (Stellarium / IAU → JSON) and `scene/constellations.ts` are stubs.
+  Plan: Stellarium's modern Western lines + IAU 1930 boundaries.
+- `scene/planets.ts`, `scene/moon.ts`, `scene/lines.ts` — stubs.
+  Sun / Moon / planet sprites, Moon-phase shader, equator / ecliptic /
+  prime-meridian lines.
 - `controls/time-controller.ts` is just `RATES` + `advance()`; play/pause
   and the ±1 year scrub bar are wired in `ui/drawer.ts` directly for now.
-- `ui/sliders.ts`, `ui/toggles.ts`, `ui/labels.ts` — stubs. The drawer is
-  a single row in pass 2; the collapsible sheet pattern for phones lands
-  later.
+- `ui/sliders.ts`, `ui/toggles.ts` — stubs. Helper modules for the
+  eventual collapsible bottom-sheet design.
 - Camera pinch zoom, drag inertia, and elevation cardinal markers.
 - Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
+- **Pass-3 follow-up nits** (deferred at the time, see project memory
+  `armillary_pass3_followups.md`):
+    - Earth-occlusion of star labels (small Vector3 dot test in
+      `src/ui/labels.ts`).
+    - Deploy-artifact rebuild noise — the per-commit `armillarySphere/`
+      churn dominates diffs. Stable hashed-asset filenames in vite
+      config is the lowest-friction fix.
 
 ## Test Coverage
 
-`deno task test` runs Vitest (8 files, 59 tests as of pass 2):
+`deno task test` runs Vitest (11 files, 92 tests as of pass 3):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. rotation-mode codes.
@@ -164,6 +191,14 @@ Working end to end:
 - `rotation` — `(earthY − celestialY) ≡ gast` invariant.
 - `camera-controls` — pure clamp / drag / wheel helpers.
 - `persistence` — debounce coalescing, non-persisted-slice gating.
+- `build-catalogue` — BSC5 ASCII parse fixtures (HR 1, HR 2, HR 92
+  no-position case) + binary header / record little-endian byte
+  placement.
+- `catalogue-loader` — round-trip via encodeCatalogue, position formula
+  at three reference directions, header rejection, monotonicity / clamp
+  / interpolation invariants for `magToSize` and `bvToColor`.
+- `build-names` — IAU-CSN parse fixtures (HR-from-designation, 6-digit
+  HD overflow, exoplanet-host fallthrough) + magnitude-cap filter.
 
 ## Gotchas — things we burned time on, don't re-burn it
 
@@ -200,6 +235,28 @@ collected here for fast lookup before debugging.
   Don't change without re-tracing the coordinate plumbing.
 - **Vite imports GLSL with `?raw`.** See `import vertexShader from '../shaders/earth.vert.glsl?raw'`
   in `scene/earth.ts`. Without `?raw` Vite tries to parse the file.
+- **BSC5 ASCII has Galactic coords between J2000 Dec and V mag.** V mag
+  sits at character columns 103–107 (F5.2), B−V at 110–114, NOT 91–96
+  as several abbreviated online "BSC5 ReadMe" snippets imply. Those
+  shorter docs omit the GLON/GLAT block and quote shifted offsets that
+  read pure garbage. The fixtures in `tests/build-catalogue.test.ts`
+  use real first-row values from `data/source/bsc5.dat` to lock the
+  correct alignment in — don't rewrite them from a secondary source.
+- **IAU-CSN columns are character-aligned, not byte-aligned.** Despite
+  multi-byte UTF-8 diacritics in column 2, every column boundary lines
+  up by character count. Parse via `String.slice` on character indices.
+  Also: the HD slot widens from 5 to 6 chars when the value overflows
+  5 digits; `slice(97, 104)` covers both cases.
+- **`catalogue.positions` is unit-sphere; `scene/stars.ts` scales by
+  R_CS into the points geometry.** `src/ui/labels.ts` consumes
+  `catalogue.positions` directly, so it has to redo the multiply. If
+  R_CS ever changes, both call sites pick it up via the import from
+  `scene/celestial-sphere`.
+- **R_CS = 1.1 leaves the camera shell just inside the celestial sphere
+  at full zoom-in.** `CAMERA_MIN_DISTANCE = 1.05` and R_CS = 1.1 means a
+  fully-zoomed camera ends up between Earth and the sphere — an
+  acceptable "looking at the dome from underneath" state, not a visual
+  break. Don't chase it as a bug.
 
 ## Out of Scope (v1, per spec §9)
 
