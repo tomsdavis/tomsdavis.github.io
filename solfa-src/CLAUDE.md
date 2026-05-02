@@ -35,7 +35,7 @@ src/
       draggable.ts                 # Svelte action — drag source via Pointer Events
       droppable.ts                 # Hit-test helpers (findCellAtPoint, resolveDropTarget)
     audio/
-      engine.ts                    # AudioEngine class (init, playNote, playNoteByMidi, stopNote, stopAll)
+      engine.ts                    # AudioEngine class (init, warmup, resumeIfNeeded, playNote, playNoteByMidi, stopNote, stopAll)
       pitch.ts                     # pitchToMidi, midiToHz, hzToMidi, resolvePlaybackMidi
       voice.ts                     # createVoice, stopVoice
     components/
@@ -107,7 +107,7 @@ src/
 - Pitch set via `oscillator.frequency.value = midiToHz(midiNote)` — exact, no pitch-shifting artefacts.
 - Two play methods: `playNote(pitch, refMidi)` resolves pitch then delegates to `playNoteByMidi(midi)`. Grid cells use `resolvePlaybackMidi(note, refMidi)` then `playNoteByMidi` — this enables live transposition of relative-mode notes via the toolbar base pitch.
 - Envelope: 10ms linear attack on start (`linearRampToValueAtTime`); 60ms exponential decay on stop (`setTargetAtTime` with τ=0.02), oscillator `stop()` scheduled 100ms out, nodes disconnected in `onended` callback.
-- `AudioEngine.init()` must be called from a user gesture. `audioState.ensureReady()` handles lazy init + resume. Init is now near-instant (no sample loading).
+- `AudioEngine.init()` must be called from a user gesture, **synchronously** — see Notes/Gotchas. `audioState.ensureReady()` handles lazy init + warmup (1-sample silent buffer to unlock iOS) + non-awaiting resume on every call. Both `init` and `ensureReady` are sync `void`; do not reintroduce `async` on this path.
 - `AudioState` wraps `AudioEngine` and tracks `playingVoices` as reactive `$state`.
 
 ### Stores
