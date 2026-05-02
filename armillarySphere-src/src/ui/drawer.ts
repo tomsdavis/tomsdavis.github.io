@@ -28,6 +28,10 @@ export function attachDrawer(opts: {
     </select>
     <button type="button" id="rotation" aria-label="Toggle rotation mode" title="Toggle rotation mode">↻</button>
     <button type="button" id="reset" title="Reset view">⟲</button>
+    <label class="slider" id="mag-label" title="Magnitude limit (lower = brighter cutoff)">
+      <span class="slider-caption">mag <output id="mag-out">5.0</output></span>
+      <input type="range" id="mag" min="0" max="6.5" step="0.1" />
+    </label>
   `;
   container.appendChild(root);
 
@@ -37,6 +41,8 @@ export function attachDrawer(opts: {
   const rateSel = root.querySelector<HTMLSelectElement>('#rate')!;
   const rotationBtn = root.querySelector<HTMLButtonElement>('#rotation')!;
   const resetBtn = root.querySelector<HTMLButtonElement>('#reset')!;
+  const magInput = root.querySelector<HTMLInputElement>('#mag')!;
+  const magOut = root.querySelector<HTMLOutputElement>('#mag-out')!;
 
   // --- subscriptions ----------------------------------------------------
   const unsubs: Unsubscribe[] = [];
@@ -50,6 +56,10 @@ export function attachDrawer(opts: {
       ? 'Rotation mode: rotating Earth (click for fixed Earth)'
       : 'Rotation mode: fixed Earth (click for rotating Earth)';
   }));
+  unsubs.push(store.subscribe('magnitudeLimit', (m) => {
+    magInput.value = String(m);
+    magOut.value = m.toFixed(1);
+  }));
 
   // Apply initial state to the controls.
   const s0 = store.get();
@@ -57,6 +67,8 @@ export function attachDrawer(opts: {
   rateSel.value = String(s0.rate);
   playBtn.textContent = s0.playing ? '⏸' : '▶';
   rotationBtn.classList.toggle('fixed', s0.rotationMode === 'fixed-earth');
+  magInput.value = String(s0.magnitudeLimit);
+  magOut.value = s0.magnitudeLimit.toFixed(1);
 
   // --- listeners --------------------------------------------------------
   const onDt = () => {
@@ -74,6 +86,10 @@ export function attachDrawer(opts: {
     store.set({ rotationMode: m === 'rotating-earth' ? 'fixed-earth' : 'rotating-earth' });
   };
   const onReset = () => cameraControls.resetView();
+  const onMag = () => {
+    const v = Number(magInput.value);
+    if (Number.isFinite(v)) store.set({ magnitudeLimit: v });
+  };
 
   dt.addEventListener('change', onDt);
   nowBtn.addEventListener('click', onNow);
@@ -81,6 +97,7 @@ export function attachDrawer(opts: {
   rateSel.addEventListener('change', onRate);
   rotationBtn.addEventListener('click', onRotation);
   resetBtn.addEventListener('click', onReset);
+  magInput.addEventListener('input', onMag);
 
   return {
     detach() {

@@ -70,3 +70,24 @@ html, body {
 #drawer #playpause {
   font-size: 1.25rem;
 }
+
+#drawer .slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  min-height: 44px;
+}
+
+#drawer .slider .slider-caption {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: #a8a8c8;
+  user-select: none;
+}
+
+#drawer .slider input[type="range"] {
+  width: 9rem;
+  cursor: pointer;
+  accent-color: #6a5a8e;
+}
