@@ -1,0 +1,23 @@
+{
+  "tasks": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno run -A npm:vite build",
+    "preview": "deno run -A npm:vite preview",
+    "check": "deno run -A npm:typescript/tsc --noEmit -p tsconfig.json",
+    "test": "deno run -A npm:vitest run",
+    "test:watch": "deno run -A npm:vitest"
+  },
+  "imports": {
+    "three": "npm:three@^0.169",
+    "@types/three": "npm:@types/three@^0.169",
+    "astronomy-engine": "npm:astronomy-engine@^2",
+    "vite": "npm:vite@^6",
+    "vite-plugin-pwa": "npm:vite-plugin-pwa@^0.21",
+    "vitest": "npm:vitest@^3",
+    "typescript": "npm:typescript@^5"
+  },
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  "nodeModulesDir": "auto"
+}
