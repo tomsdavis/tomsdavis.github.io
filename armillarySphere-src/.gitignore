@@ -2,5 +2,4 @@ requirements/
 node_modules/
 .vite/
 dist/
-data/source/
 private/
