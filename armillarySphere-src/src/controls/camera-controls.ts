@@ -6,7 +6,7 @@
 import type { AppState, Store } from '../state';
 
 export const CAMERA_MIN_DISTANCE = 1.05;
-export const CAMERA_MAX_DISTANCE = 5;
+export const CAMERA_MAX_DISTANCE = 3;
 export const ELEVATION_LIMIT = Math.PI / 2 - 0.01;
 
 const DRAG_SENSITIVITY = 0.005;
@@ -49,7 +49,7 @@ export interface CameraControls {
   resetView(): void;
 }
 
-const DEFAULT_CAMERA: CameraSlice = { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 4.5 };
+const DEFAULT_CAMERA: CameraSlice = { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 2.5 };
 
 export function attachCameraControls(opts: {
   element: HTMLElement;

@@ -50,7 +50,7 @@ export interface Store<S extends object> {
 export function defaultState(): AppState {
   return {
     instant: new Date(),
-    camera: { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 4.5 },
+    camera: { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 2.5 },
     magnitudeLimit: 5.0,
     celestialOpacity: 0.15,
     rotationMode: 'rotating-earth',

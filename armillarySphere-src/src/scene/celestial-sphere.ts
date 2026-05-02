@@ -1,10 +1,13 @@
-// Spec §4.1: outer sphere of radius R_cs ≈ 2 — the armillary anchor for
-// stars, planets, and reference lines. In this pass it is rendered only as
-// a faint wireframe placeholder; stars and constellations land in pass 3+.
+// Spec §4.1: outer sphere — the armillary anchor for stars, planets, and
+// reference lines. The spec's working default is R_cs ≈ 2, but we tightened
+// to 1.1 to push the armillary illusion harder: a star sits visually
+// adjacent to its sub-stellar point on Earth from any external angle.
+// Constraint: R_CS must stay above CAMERA_MIN_DISTANCE so the camera shell
+// doesn't end up outside the celestial sphere when zoomed in.
 
 import * as THREE from 'three';
 
-export const R_CS = 2;
+export const R_CS = 1.1;
 
 export interface CelestialSphereHandle {
   group: THREE.Group;

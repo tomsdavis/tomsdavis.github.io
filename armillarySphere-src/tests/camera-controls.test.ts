@@ -9,7 +9,7 @@ import {
 } from '../src/controls/camera-controls';
 
 describe('clampCamera', () => {
-  it('clamps distance to [1.05, 5]', () => {
+  it('clamps distance to [1.05, 3]', () => {
     expect(clampCamera({ azimuth: 0, elevation: 0, distance: 0.5 }).distance).toBe(CAMERA_MIN_DISTANCE);
     expect(clampCamera({ azimuth: 0, elevation: 0, distance: 99 }).distance).toBe(CAMERA_MAX_DISTANCE);
     expect(clampCamera({ azimuth: 0, elevation: 0, distance: 3 }).distance).toBe(3);
@@ -50,24 +50,24 @@ describe('applyDrag', () => {
 
 describe('applyWheelZoom', () => {
   it('positive deltaY (scroll down = zoom out) increases distance', () => {
-    const next = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 3 }, 100, 0.001);
-    expect(next.distance).toBeGreaterThan(3);
+    const next = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 2 }, 100, 0.001);
+    expect(next.distance).toBeGreaterThan(2);
   });
 
   it('negative deltaY (scroll up = zoom in) decreases distance', () => {
-    const next = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 3 }, -100, 0.001);
-    expect(next.distance).toBeLessThan(3);
+    const next = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 2 }, -100, 0.001);
+    expect(next.distance).toBeLessThan(2);
   });
 
   it('clamps to the valid distance range', () => {
     expect(applyWheelZoom({ azimuth: 0, elevation: 0, distance: 1.05 }, -1e6, 0.001).distance).toBe(CAMERA_MIN_DISTANCE);
-    expect(applyWheelZoom({ azimuth: 0, elevation: 0, distance: 5 }, 1e6, 0.001).distance).toBe(CAMERA_MAX_DISTANCE);
+    expect(applyWheelZoom({ azimuth: 0, elevation: 0, distance: 3 }, 1e6, 0.001).distance).toBe(CAMERA_MAX_DISTANCE);
   });
 
   it('zooms multiplicatively (perceptually linear with scroll)', () => {
-    const a = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 3 }, 100, 0.001);
+    const a = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 2.5 }, 100, 0.001);
     const b = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 1.5 }, 100, 0.001);
     // Same scroll delta from different starting points → same multiplicative ratio.
-    expect(a.distance / 3).toBeCloseTo(b.distance / 1.5);
+    expect(a.distance / 2.5).toBeCloseTo(b.distance / 1.5);
   });
 });
