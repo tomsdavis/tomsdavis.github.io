@@ -16,9 +16,13 @@ export class AudioEngine {
 
 	/**
 	 * Initialize the audio context and build the organ waveform.
-	 * Must be called from a user gesture handler.
+	 * Must be called from a user gesture handler — synchronously, with no
+	 * await between the gesture event and this call. iOS Safari validates
+	 * gestures strictly: any microtask boundary (an `await`, a `.then()`)
+	 * between the user's touch and the AudioContext construction can leave
+	 * the context permanently suspended and silent.
 	 */
-	async init(): Promise<void> {
+	init(): void {
 		if (this.ctx) return;
 
 		this.ctx = new AudioContext();
@@ -36,11 +40,30 @@ export class AudioEngine {
 	}
 
 	/**
-	 * Resume audio context if suspended (required after user gesture on some browsers).
+	 * Play a 1-sample silent buffer through the destination. iOS keeps audio
+	 * locked until *something* has actually been routed through the context;
+	 * this satisfies that requirement inaudibly. Cheap and idempotent — call
+	 * once, on the same gesture as init().
 	 */
-	async resume(): Promise<void> {
+	warmup(): void {
+		if (!this.ctx) return;
+		const buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+		const source = this.ctx.createBufferSource();
+		source.buffer = buffer;
+		source.connect(this.ctx.destination);
+		source.start(0);
+	}
+
+	/**
+	 * Kick the context toward 'running' if it's suspended. Fire-and-forget:
+	 * we deliberately don't await, because awaiting would push the next
+	 * audio call into a microtask and break iOS's user-gesture chain.
+	 * Subsequent OscillatorNode.start() calls queue and play once the
+	 * context transitions, which is fast in practice.
+	 */
+	resumeIfNeeded(): void {
 		if (this.ctx?.state === 'suspended') {
-			await this.ctx.resume();
+			this.ctx.resume().catch(() => {});
 		}
 	}
 

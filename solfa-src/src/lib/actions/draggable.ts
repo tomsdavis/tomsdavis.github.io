@@ -35,18 +35,16 @@ export function draggable(node: HTMLElement, options: DraggableOptions) {
 		const source = opts.source();
 		dragState.startDrag(source, e.clientX, e.clientY);
 
-		// Start audio preview immediately
-		audioState.ensureReady().then(() => {
-			if (dragState.isDragging) {
-				let voiceId: string | null;
-				if (source.kind === 'grid') {
-					voiceId = audioState.playNoteByMidi(resolvePlaybackMidi(source.note, paletteState.refMidi));
-				} else {
-					voiceId = audioState.playNote(source.pitch, paletteState.effectiveRefMidiForPalette);
-				}
-				dragState.setVoiceId(voiceId);
-			}
-		});
+		// Synchronous audio start so iOS Safari's user-gesture validation
+		// holds from this event all the way to OscillatorNode.start().
+		audioState.ensureReady();
+		let voiceId: string | null;
+		if (source.kind === 'grid') {
+			voiceId = audioState.playNoteByMidi(resolvePlaybackMidi(source.note, paletteState.refMidi));
+		} else {
+			voiceId = audioState.playNote(source.pitch, paletteState.effectiveRefMidiForPalette);
+		}
+		dragState.setVoiceId(voiceId);
 
 		document.addEventListener('pointermove', onDocumentPointerMove);
 		document.addEventListener('pointerup', onDocumentPointerUp);

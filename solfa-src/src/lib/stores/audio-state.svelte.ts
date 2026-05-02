@@ -6,16 +6,21 @@ class AudioState {
 	ready: boolean = $state(false);
 	playingVoices: Set<string> = $state(new Set());
 
-	async init(): Promise<void> {
-		await this.engine.init();
-		this.ready = this.engine.ready;
-	}
-
-	async ensureReady(): Promise<void> {
+	/**
+	 * Synchronous: must be called from a user gesture handler with no
+	 * await/.then() between the gesture and this call. On first invocation
+	 * it constructs the AudioContext and pumps a silent warmup buffer
+	 * through it (the iOS unlock dance); on every invocation it kicks the
+	 * context toward 'running' without awaiting, so the next playNote can
+	 * fire on the same synchronous tick.
+	 */
+	ensureReady(): void {
 		if (!this.ready) {
-			await this.init();
+			this.engine.init();
+			this.engine.warmup();
+			this.ready = this.engine.ready;
 		}
-		await this.engine.resume();
+		this.engine.resumeIfNeeded();
 	}
 
 	playNoteByMidi(midi: number): string | null {

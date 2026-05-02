@@ -18,7 +18,6 @@
 
 	// Track active voice IDs for this cell (supports multitouch)
 	let activeVoices = $state(new Map<number, string>());
-	const releasedBeforeStart = new Set<number>();
 
 	let playing = $derived(activeVoices.size > 0);
 
@@ -38,21 +37,13 @@
 		if (appState.mode !== 'playback') return;
 		if (!cell) return;
 
-		const pointerId = e.pointerId;
-		releasedBeforeStart.delete(pointerId);
-
-		audioState.ensureReady().then(() => {
-			if (!cell) return;
-			const voiceId = audioState.playNoteByMidi(resolvePlaybackMidi(cell, paletteState.refMidi));
-			if (voiceId) {
-				if (releasedBeforeStart.has(pointerId)) {
-					audioState.stopNote(voiceId);
-					releasedBeforeStart.delete(pointerId);
-				} else {
-					activeVoices = new Map([...activeVoices, [pointerId, voiceId]]);
-				}
-			}
-		});
+		// Synchronous chain so iOS Safari's user-gesture validation holds
+		// from this event all the way to OscillatorNode.start().
+		audioState.ensureReady();
+		const voiceId = audioState.playNoteByMidi(resolvePlaybackMidi(cell, paletteState.refMidi));
+		if (voiceId) {
+			activeVoices = new Map([...activeVoices, [e.pointerId, voiceId]]);
+		}
 
 		e.preventDefault();
 	}
@@ -70,10 +61,7 @@
 	}
 
 	function onPointerUp(e: PointerEvent) {
-		if (!stopVoice(e.pointerId)) {
-			// Voice hasn't started yet — mark so it gets stopped when it does
-			releasedBeforeStart.add(e.pointerId);
-		}
+		stopVoice(e.pointerId);
 	}
 
 	function onPointerCancel(e: PointerEvent) {
