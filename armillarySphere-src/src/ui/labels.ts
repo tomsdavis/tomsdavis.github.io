@@ -12,7 +12,9 @@
 
 import * as THREE from 'three';
 import type { Catalogue } from '../astronomy/catalogue-loader';
-import { R_CS } from '../scene/celestial-sphere';
+import { R_CS, isOccludedByEarth } from '../scene/celestial-sphere';
+import type { PlanetsHandle } from '../scene/planets';
+import { BODY_NAMES, type BodyName } from '../astronomy/ephemeris';
 
 export interface LabelsHandle {
   /** Reposition every visible label after a camera/state update. */
@@ -79,6 +81,8 @@ export function attachLabels(opts: {
   let viewportH = 0;
   const tmp = new THREE.Vector3();
 
+  const worldTmp = new THREE.Vector3();
+
   const updateOne = (entry: Entry, camera: THREE.Camera, parent: THREE.Object3D): void => {
     if (!layerEnabled || entry.mag > magLimit) {
       if (entry.shown) {
@@ -88,7 +92,16 @@ export function attachLabels(opts: {
       return;
     }
 
-    tmp.copy(entry.localPos).applyMatrix4(parent.matrixWorld).project(camera);
+    worldTmp.copy(entry.localPos).applyMatrix4(parent.matrixWorld);
+    if (isOccludedByEarth(camera.position, worldTmp)) {
+      if (entry.shown) {
+        entry.el.style.display = 'none';
+        entry.shown = false;
+      }
+      return;
+    }
+
+    tmp.copy(worldTmp).project(camera);
 
     if (tmp.z < -1 || tmp.z > 1) {
       if (entry.shown) {
@@ -132,6 +145,111 @@ export function attachLabels(opts: {
     },
     setMagnitudeLimit(limit) {
       magLimit = limit;
+    },
+    dispose() {
+      wrapper.remove();
+    },
+  };
+}
+
+// Spec §4.5: labels for the seven solar-system bodies. Mirrors the star-label
+// projection path but reads each body's *current* world position from the
+// planets handle every frame (positions change with state.instant and the
+// celestial-sphere root rotation). Gated by state.layers.planets so the
+// label visibility tracks the sprite visibility.
+
+export interface BodyLabelsHandle {
+  update(camera: THREE.Camera): void;
+  setSize(width: number, height: number): void;
+  setVisible(on: boolean): void;
+  dispose(): void;
+}
+
+interface BodyEntry {
+  body: BodyName;
+  el: HTMLSpanElement;
+  shown: boolean;
+}
+
+export function attachBodyLabels(opts: {
+  planets: PlanetsHandle;
+  container: HTMLElement;
+}): BodyLabelsHandle {
+  const { planets, container } = opts;
+
+  const wrapper = document.createElement('div');
+  wrapper.id = 'body-labels';
+  container.appendChild(wrapper);
+
+  const entries: BodyEntry[] = BODY_NAMES.map((body) => {
+    const el = document.createElement('span');
+    el.textContent = body;
+    el.style.display = 'none';
+    wrapper.appendChild(el);
+    return { body, el, shown: false };
+  });
+
+  let layerEnabled = true;
+  let viewportW = 0;
+  let viewportH = 0;
+  const tmp = new THREE.Vector3();
+
+  const updateOne = (entry: BodyEntry, camera: THREE.Camera): void => {
+    if (!layerEnabled) {
+      if (entry.shown) {
+        entry.el.style.display = 'none';
+        entry.shown = false;
+      }
+      return;
+    }
+
+    planets.getWorldPosition(entry.body, tmp);
+    if (isOccludedByEarth(camera.position, tmp)) {
+      if (entry.shown) {
+        entry.el.style.display = 'none';
+        entry.shown = false;
+      }
+      return;
+    }
+    tmp.project(camera);
+
+    if (tmp.z < -1 || tmp.z > 1) {
+      if (entry.shown) {
+        entry.el.style.display = 'none';
+        entry.shown = false;
+      }
+      return;
+    }
+
+    const x = (tmp.x + 1) * 0.5 * viewportW;
+    const y = (1 - tmp.y) * 0.5 * viewportH;
+
+    if (!entry.shown) {
+      entry.el.style.display = '';
+      entry.shown = true;
+    }
+    entry.el.style.transform = `translate(${(x + 8).toFixed(1)}px, ${(y - 14).toFixed(1)}px)`;
+  };
+
+  return {
+    update(camera) {
+      if (viewportW === 0 || viewportH === 0) return;
+      for (const e of entries) updateOne(e, camera);
+    },
+    setSize(width, height) {
+      viewportW = width;
+      viewportH = height;
+    },
+    setVisible(on) {
+      layerEnabled = on;
+      if (!on) {
+        for (const e of entries) {
+          if (e.shown) {
+            e.el.style.display = 'none';
+            e.shown = false;
+          }
+        }
+      }
     },
     dispose() {
       wrapper.remove();

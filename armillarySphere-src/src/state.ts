@@ -12,6 +12,8 @@ export interface Layers {
   constellationLabels: boolean;
   starLabels: boolean;
   terminator: boolean;
+  /** §4.5 — Sun, Moon, and the five classical planets as a single layer. */
+  planets: boolean;
 }
 
 export interface AppState {
@@ -65,6 +67,7 @@ export function defaultState(): AppState {
       constellationLabels: true,
       starLabels: true,
       terminator: true,
+      planets: true,
     },
   };
 }

@@ -4,8 +4,9 @@
 
 import * as THREE from 'three';
 import { createEarth, type EarthHandle } from './earth';
-import { createCelestialSphere, type CelestialSphereHandle } from './celestial-sphere';
+import { createCelestialSphere, raDecToVec3, type CelestialSphereHandle } from './celestial-sphere';
 import { createStars, type StarsHandle } from './stars';
+import { createPlanets, type PlanetsHandle } from './planets';
 import { rotationFor } from './rotation';
 import { sunDirection, gast } from '../astronomy/ephemeris';
 import { loadCatalogue } from '../astronomy/catalogue-loader';
@@ -17,6 +18,7 @@ export interface SceneHandle {
   earth: EarthHandle;
   celestial: CelestialSphereHandle;
   stars: StarsHandle;
+  planets: PlanetsHandle;
   /** The parsed BSC5 catalogue, kept on the handle so the label overlay can
    *  look up world-space positions for named stars without re-fetching. */
   catalogue: import('../astronomy/catalogue-loader').Catalogue;
@@ -45,9 +47,10 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
   const celestialRoot = new THREE.Group();
   scene.add(earthRoot, celestialRoot);
 
-  const [earth, catalogue] = await Promise.all([
+  const [earth, catalogue, planets] = await Promise.all([
     createEarth(),
     loadCatalogue('bsc5.bin'),
+    createPlanets(),
   ]);
   earthRoot.add(earth.mesh);
 
@@ -57,12 +60,21 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
   const stars = createStars(catalogue);
   celestialRoot.add(stars.points);
 
+  celestialRoot.add(planets.group);
+
+  // Per-frame ephemeris caching: planet positions only re-resolve when the
+  // canonical instant actually changes. Sub-millisecond drift in JS Date
+  // comparison via getTime() is fine — the spec advances time by ≥ a few
+  // milliseconds per render-loop tick at the highest rate.
+  let lastPlanetInstantMs = Number.NaN;
+
   return {
     renderer,
     camera,
     earth,
     celestial,
     stars,
+    planets,
     catalogue,
     earthRoot,
     celestialRoot,
@@ -86,6 +98,13 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
       earth.setTerminatorEnabled(state.layers.terminator);
       celestial.setOpacity(state.celestialOpacity);
       stars.setMagnitudeLimit(state.magnitudeLimit);
+
+      const tMs = t.getTime();
+      if (tMs !== lastPlanetInstantMs) {
+        planets.setPositions(t);
+        lastPlanetInstantMs = tMs;
+      }
+      planets.setVisible(state.layers.planets);
 
       const { azimuth, elevation, distance } = state.camera;
       camera.position.set(
@@ -111,20 +130,8 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
       earth.dispose();
       celestial.dispose();
       stars.dispose();
+      planets.dispose();
       renderer.dispose();
     },
   };
-}
-
-/**
- * Convert equatorial RA/Dec to a unit-radius cartesian vector in the
- * celestial-sphere local frame: +Y is the north celestial pole, +Z is RA = 0.
- */
-function raDecToVec3(ra: number, dec: number, r: number): THREE.Vector3 {
-  const cosDec = Math.cos(dec);
-  return new THREE.Vector3(
-    r * cosDec * Math.sin(ra),
-    r * Math.sin(dec),
-    r * cosDec * Math.cos(ra),
-  );
 }

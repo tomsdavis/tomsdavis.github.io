@@ -4,7 +4,7 @@ import { resolveInitialState } from './storage';
 import { attachCameraControls } from './controls/camera-controls';
 import { attachPersistence } from './persistence';
 import { attachDrawer } from './ui/drawer';
-import { attachLabels } from './ui/labels';
+import { attachLabels, attachBodyLabels } from './ui/labels';
 import { advance } from './controls/time-controller';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -30,10 +30,12 @@ const cameraControls = attachCameraControls({ element: canvas, store });
 attachDrawer({ container: overlay, store, cameraControls });
 attachPersistence(store, globalThis.localStorage);
 const labels = attachLabels({ catalogue: scene.catalogue, names, container: overlay });
+const bodyLabels = attachBodyLabels({ planets: scene.planets, container: overlay });
 
 const resize = () => {
   scene.resize(window.innerWidth, window.innerHeight);
   labels.setSize(window.innerWidth, window.innerHeight);
+  bodyLabels.setSize(window.innerWidth, window.innerHeight);
 };
 resize();
 window.addEventListener('resize', resize);
@@ -53,5 +55,7 @@ scene.renderer.setAnimationLoop((tNow) => {
   labels.setVisible(cur.layers.starLabels);
   labels.setMagnitudeLimit(cur.magnitudeLimit);
   labels.update(scene.camera, scene.celestialRoot);
+  bodyLabels.setVisible(cur.layers.planets);
+  bodyLabels.update(scene.camera);
   scene.render();
 });

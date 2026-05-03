@@ -24,6 +24,22 @@ Both textures live in `public/textures/`.
 - This build: resized to 2048×1024, JPEG quality 85, EXIF stripped.
 - License: Public domain (NASA imagery). Credit: "NASA / Goddard Space Flight Center / Reto Stöckli."
 
+## Solar-system body sprites
+
+Files live in `public/textures/planets/`: `sun.png`, `moon.png`, `mercury.png`,
+`venus.png`, `mars.png`, `jupiter.png`, `saturn.png`. Each is a 128×128
+transparent PNG, ~0.8–4.5 KB.
+
+- Source: hand-rolled placeholder discs generated with ImageMagick during
+  pass 4 (2026-05-03). Each is a flat-coloured disc with a few minimal
+  identifying flourishes (Sun glow, Moon crater dots, Jupiter bands,
+  Saturn rings).
+- License: original work, public domain.
+- Status: **placeholders.** Intended to be swapped for higher-fidelity art
+  (e.g. cropped NASA imagery for the planets, a proper grayscale Moon
+  texture for the phase shader to sample) without changing filenames or
+  dimensions.
+
 ## Spec deviation note
 
 Spec §6.3 specifies 4096×2048 with target sizes ~2 MB (day) and ~1.5 MB (night).

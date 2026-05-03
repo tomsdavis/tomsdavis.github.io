@@ -9,6 +9,48 @@ import * as THREE from 'three';
 
 export const R_CS = 1.1;
 
+/**
+ * Convert equatorial RA/Dec to a cartesian vector in the celestial-sphere
+ * local frame: +Y is the north celestial pole, +Z is RA = 0. Pass `r = R_CS`
+ * to land on the celestial sphere itself, or `r = 1` for a unit direction.
+ */
+export function raDecToVec3(ra: number, dec: number, r: number): THREE.Vector3 {
+  const cosDec = Math.cos(dec);
+  return new THREE.Vector3(
+    r * cosDec * Math.sin(ra),
+    r * Math.sin(dec),
+    r * cosDec * Math.cos(ra),
+  );
+}
+
+/**
+ * True iff the line segment from `camera` to `worldPos` passes through the
+ * unit-radius Earth at the world origin — i.e. the point sits behind Earth
+ * from the camera's viewpoint and any label anchored there would otherwise
+ * "show through" the globe.
+ *
+ * Geometry: parameterise the segment as C + t·(P − C) for t ∈ [0, 1]. Its
+ * closest approach to the origin lies at t = −(C·(P−C)) / |P−C|². If that
+ * lies in (0, 1) and the point at that t has |·| < 1, the ray pierces Earth
+ * between camera and target. Pure dot products — no trigonometry, no sqrt.
+ */
+export function isOccludedByEarth(camera: THREE.Vector3, worldPos: THREE.Vector3): boolean {
+  const dx = worldPos.x - camera.x;
+  const dy = worldPos.y - camera.y;
+  const dz = worldPos.z - camera.z;
+  const lenSq = dx * dx + dy * dy + dz * dz;
+  if (lenSq === 0) return false;
+
+  const cdotD = camera.x * dx + camera.y * dy + camera.z * dz;
+  const t = -cdotD / lenSq;
+  if (t <= 0 || t >= 1) return false;
+
+  const cx = camera.x + t * dx;
+  const cy = camera.y + t * dy;
+  const cz = camera.z + t * dz;
+  return cx * cx + cy * cy + cz * cz < 1;
+}
+
 export interface CelestialSphereHandle {
   group: THREE.Group;
   setOpacity(opacity: number): void;
