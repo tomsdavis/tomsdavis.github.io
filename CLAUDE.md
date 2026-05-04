@@ -3,6 +3,9 @@
 ## Project Overview
 A GitHub Pages site hosting independent progressive web apps (tools/calculators). Each tool is self-contained in its own subdirectory. The home page links to them.
 
+### Repo structure: monorepo today, possibly per-tool repos later
+The three tools (ephemerides, armillarySphere, solfa) live together for one reason: a single GH Pages deploy. They are otherwise independent — different stacks, different dependencies, different audiences. If any single tool grows external interest (forks, issues, contributors) or the tools stop sharing structural conventions, splitting into per-tool repos deployed as GH Pages project pages is worth revisiting; public URLs (`tomsdavis.github.io/<tool>/`) stay the same under either layout, so the migration is mechanical rather than user-facing. Until then the monorepo wins on simplicity.
+
 ## Tech Stack & Constraints
 - **Vanilla HTML + CSS + JavaScript** is the default — no frameworks, no build tools, no npm
 - Functional-programming-style JS preferred (pure functions, immutable data, map/filter/reduce)
