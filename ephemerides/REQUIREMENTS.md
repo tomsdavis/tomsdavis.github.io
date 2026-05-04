@@ -43,16 +43,21 @@ RA/Dec obtained from JPL Horizons REST API.
 ### Per Body (column order as displayed)
 | Field | Format | Source |
 |-------|--------|--------|
+| Right Ascension (RA) | HH:MM | Catalog (stars) or Horizons API (planets) |
+| Right Ascension (RA) | degrees | Catalog (stars) or Horizons API (planets) |
 | Declination (Dec) | degrees | Catalog (stars) or Horizons API (planets) |
-| Right Ascension (RA) | degrees and HH:MM | Catalog (stars) or Horizons API (planets) |
 | Altitude (Alt) | degrees | Calculated from RA/Dec + observer location + time |
 | Azimuth (Az) | degrees | Calculated from RA/Dec + observer location + time |
+
+Rows in each table are sorted by ascending RA.
 
 ### Global
 | Field | Format |
 |-------|--------|
 | Greenwich Mean Sidereal Time (GMST) | HH:MM:SS |
+| GMST at start of current Julian Day (0h JD = most recent 12:00 UT) | HH:MM:SS |
 | Earth Rotation Angle (ERA) | degrees |
+| Julian Date (JD) | decimal |
 | Last API refresh | datetime string |
 
 ## User Inputs
@@ -142,10 +147,10 @@ General precession rate ~50.3"/year in ecliptic longitude; per-star rates from c
 ## UI Layout
 
 ### Structure
-1. **Header**: Title, GMST, ERA, last API refresh time
+1. **Header**: Title, GMST, GMST (0h JD), ERA, JD, last API refresh time
 2. **Settings bar**: Latitude/longitude inputs, separate date and time inputs, "Now" and "Refresh API" buttons
-3. **Stars table**: One row per fixed star, columns: Name, Dec, RA (deg), RA (HH:MM), Alt, Az
-4. **Planets table**: One row per solar system body, same columns as stars table (fixed-width columns aligned across both tables)
+3. **Solar System table**: One row per body, columns: Name, RA (HH:MM), RA (deg), Dec, Alt, Az. Sorted by ascending RA; rows still loading or without data appear after sorted rows in catalog order.
+4. **Fixed Stars table**: One row per star, same columns as Solar System table (fixed-width columns aligned across both tables). Sorted by ascending RA (post-precession).
 
 ### Styling
 - Simple, clean, mobile-friendly (primarily used on iPhone)

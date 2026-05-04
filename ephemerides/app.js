@@ -14,6 +14,7 @@ const timeInput = document.getElementById('time-input');
 const nowBtn = document.getElementById('now-btn');
 const refreshBtn = document.getElementById('refresh-btn');
 const gmstEl = document.getElementById('gmst-val');
+const gmstNoonEl = document.getElementById('gmst-noon-val');
 const eraEl = document.getElementById('era-val');
 const jdEl = document.getElementById('jd-val');
 const apiStatusEl = document.getElementById('api-status');
@@ -182,9 +183,9 @@ function renderRow(name, data, belowHorizon) {
   const cls = belowHorizon ? ' class="below-horizon"' : '';
   return `<tr>
     <td class="name">${name}</td>
-    <td${cls}>${data.dec.toFixed(1)}</td>
-    <td${cls}>${data.ra.toFixed(1)}</td>
     <td${cls}>${formatHM(data.ra)}</td>
+    <td${cls}>${data.ra.toFixed(1)}</td>
+    <td${cls}>${data.dec.toFixed(1)}</td>
     <td${cls}>${data.alt.toFixed(1)}</td>
     <td${cls}>${data.az.toFixed(1)}</td>
   </tr>`;
@@ -198,42 +199,49 @@ function update(planetCache) {
 
   // Global values
   const gmstDeg = gmst(jd);
+  const gmstNoonDeg = gmst(Math.floor(jd));
   const eraDeg = era(jd);
   gmstEl.textContent = formatGMST(gmstDeg);
+  gmstNoonEl.textContent = formatGMST(gmstNoonDeg);
   eraEl.textContent = formatDeg(eraDeg);
   jdEl.textContent = formatJD(jd);
 
-  // Stars
-  let starsHTML = '';
-  for (const star of STARS) {
-    const { ra, dec } = precess(star.ra, star.dec, jd);
-    const data = computeBody(ra, dec, jd, lat, lon);
-    starsHTML += renderRow(star.name, data, data.alt < 0);
-  }
-  starsBody.innerHTML = starsHTML;
+  // Stars — sort by post-precession RA ascending
+  const starRows = STARS
+    .map((star) => {
+      const { ra, dec } = precess(star.ra, star.dec, jd);
+      return { name: star.name, data: computeBody(ra, dec, jd, lat, lon) };
+    })
+    .sort((a, b) => a.data.ra - b.data.ra);
+  starsBody.innerHTML = starRows
+    .map(({ name, data }) => renderRow(name, data, data.alt < 0))
+    .join('');
 
-  // Planets
-  let planetsHTML = '';
+  // Planets — split cached (sortable by RA) from pending/missing (catalog order, after)
   const cacheData = planetCache.data || {};
+  const cachedRows = [];
+  const placeholderRows = [];
   for (const planet of PLANETS) {
     const cached = cacheData[planet.name];
-    const pending = pendingPlanets.has(planet.name);
     if (cached) {
       const data = computeBody(cached.ra, cached.dec, jd, lat, lon);
-      planetsHTML += renderRow(planet.name, data, data.alt < 0);
-    } else if (pending) {
-      planetsHTML += `<tr>
+      cachedRows.push({ name: planet.name, data });
+    } else if (pendingPlanets.has(planet.name)) {
+      placeholderRows.push(`<tr>
         <td class="name">${planet.name}</td>
         <td colspan="5" style="color:#888">loading…</td>
-      </tr>`;
+      </tr>`);
     } else {
-      planetsHTML += `<tr>
+      placeholderRows.push(`<tr>
         <td class="name">${planet.name}</td>
         <td colspan="5" style="color:#666">No data</td>
-      </tr>`;
+      </tr>`);
     }
   }
-  planetsBody.innerHTML = planetsHTML;
+  cachedRows.sort((a, b) => a.data.ra - b.data.ra);
+  planetsBody.innerHTML =
+    cachedRows.map(({ name, data }) => renderRow(name, data, data.alt < 0)).join('') +
+    placeholderRows.join('');
 
   refreshBtn.textContent = pendingPlanets.size > 0 ? 'Refreshing…' : 'Refresh API';
 

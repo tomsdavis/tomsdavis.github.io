@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ephemerides-v2';
+const CACHE_NAME = 'ephemerides-v3';
 const ASSETS = [
   './',
   './index.html',
