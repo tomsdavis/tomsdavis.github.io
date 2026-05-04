@@ -136,7 +136,10 @@ Working end to end:
 - Magnitude-limit slider in the drawer (range 0.0–6.5, default 5.0)
   bound to `state.magnitudeLimit`. The shader uniform path makes slider
   changes a one-uniform write rather than a geometry reupload.
-- IAU named-star label overlay for the brightest 46 stars (mag ≤ 2.0).
+- IAU named-star label overlay for the brightest 85 stars (mag ≤ 2.5 —
+  raised from the spec's 2.0 to capture Polaris, which is a Cepheid
+  varying ~1.98–2.13 and listed at V = 2.13 in IAU-CSN, plus other
+  famous names like Mizar, Algol, and Eltanin).
   Names from IAU WGSN's Catalog of Star Names (`tools/build-names.ts`,
   joins to BSC5 via "HR ###" parsed from the Designation column).
   Per-frame projection in `src/ui/labels.ts`; respects

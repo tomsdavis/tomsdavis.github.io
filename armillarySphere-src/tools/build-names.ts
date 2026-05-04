@@ -7,11 +7,13 @@
 // hosts whose designations are catalog IDs like "WASP-79" or "HAT-P-15" —
 // those have no HR and naturally fall out of the filter.
 //
-// At cap mag ≤ 2.0 every surviving entry has "HR ###" in its Designation, so
-// the join to BSC5 is a regex on that column rather than an HD-→-HR
-// cross-reference. If the cap is later raised, the ~50–60 stars beyond mag 2
-// still mostly carry HR; the few exceptions can be patched in by extending
-// this with an HD lookup.
+// At cap mag ≤ 2.5 every surviving entry still has "HR ###" in its
+// Designation, so the join to BSC5 is a regex on that column rather than an
+// HD-→-HR cross-reference. The original 2.0 cap missed Polaris (V = 2.13 in
+// IAU-CSN — it's a Cepheid varying ~1.98–2.13) and a handful of other famous
+// names (Mizar, Algol, Eltanin, …). 2.5 brings them in without bloating the
+// overlay. If raised further, the few HR-less entries beyond mag 2.5 can be
+// patched in by extending this with an HD lookup.
 //
 // Run: `deno task build-names` (writes public/bsc5-names.json).
 
@@ -80,7 +82,7 @@ export const buildNameMap = (
 if (import.meta.main) {
   const inputPath = 'data/source/iau-csn.txt';
   const outputPath = 'public/bsc5-names.json';
-  const magCutoff = 2.0;
+  const magCutoff = 2.5;
 
   const text = await Deno.readTextFile(inputPath);
   const map = buildNameMap(text.split('\n'), magCutoff);
