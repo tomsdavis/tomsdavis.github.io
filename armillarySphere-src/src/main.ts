@@ -4,7 +4,7 @@ import { resolveInitialState } from './storage';
 import { attachCameraControls } from './controls/camera-controls';
 import { attachPersistence } from './persistence';
 import { attachDrawer } from './ui/drawer';
-import { attachLabels, attachBodyLabels } from './ui/labels';
+import { attachLabels, attachBodyLabels, attachRaLabels, attachConstellationLabels } from './ui/labels';
 import { advance } from './controls/time-controller';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -20,7 +20,7 @@ const store = createStore(
 // Run the scene boot and the names fetch in parallel — the names file is
 // optional (a 404 just means no labels) so we tolerate failure quietly.
 const [scene, names] = await Promise.all([
-  createScene(canvas),
+  createScene(canvas, { gridGrain: store.get().gridGrain }),
   fetch('bsc5-names.json')
     .then((r) => (r.ok ? r.json() as Promise<Record<string, string>> : {}))
     .catch(() => ({}) as Record<string, string>),
@@ -31,11 +31,18 @@ attachDrawer({ container: overlay, store, cameraControls });
 attachPersistence(store, globalThis.localStorage);
 const labels = attachLabels({ catalogue: scene.catalogue, names, container: overlay });
 const bodyLabels = attachBodyLabels({ planets: scene.planets, container: overlay });
+const raLabels = attachRaLabels({ container: overlay });
+const constellationLabels = attachConstellationLabels({
+  centroids: scene.constellations.centroids,
+  container: overlay,
+});
 
 const resize = () => {
   scene.resize(window.innerWidth, window.innerHeight);
   labels.setSize(window.innerWidth, window.innerHeight);
   bodyLabels.setSize(window.innerWidth, window.innerHeight);
+  raLabels.setSize(window.innerWidth, window.innerHeight);
+  constellationLabels.setSize(window.innerWidth, window.innerHeight);
 };
 resize();
 window.addEventListener('resize', resize);
@@ -57,5 +64,10 @@ scene.renderer.setAnimationLoop((tNow) => {
   labels.update(scene.camera, scene.celestialRoot);
   bodyLabels.setVisible(cur.layers.planets);
   bodyLabels.update(scene.camera);
+  raLabels.setVisible(cur.layers.celestialEquator);
+  raLabels.setUnits(cur.raUnits);
+  raLabels.update(scene.camera, scene.celestialRoot);
+  constellationLabels.setVisible(cur.layers.constellationLabels);
+  constellationLabels.update(scene.camera, scene.celestialRoot);
   scene.render();
 });

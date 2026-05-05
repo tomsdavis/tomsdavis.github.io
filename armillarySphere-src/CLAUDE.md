@@ -116,7 +116,7 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## What's Real Today (post pass 4)
+## What's Real Today (post pass 5)
 
 Working end to end:
 
@@ -125,8 +125,18 @@ Working end to end:
 - Celestial sphere at **R_CS = 1.1** — tightened from the spec's working
   default of 2 in pass 3 so a star sits visually adjacent to its
   sub-stellar point on Earth from any external angle. Default camera
-  distance dropped to 2.5 (was 4.5) and `CAMERA_MAX_DISTANCE` to 3 (was
-  5) so the new framing keeps Earth at a useful size.
+  distance bumped from 2.5 → 3.0 in pass 5d so the globe doesn't bleed
+  into the bottom drawer at typical viewports; `CAMERA_MAX_DISTANCE`
+  raised to 5 to leave headroom above the new default.
+- Translucent celestial-sphere shell (§4.1) at **R_SHELL = 1.05**, sitting
+  between Earth (1.0) and the celestial-sphere objects at R_CS (1.1).
+  Opacity slider in the drawer drives `state.celestialOpacity` (0..1):
+  at 0 the shell is invisible and Earth shows through; at 1 the shell is
+  opaque and hides Earth, leaving only the stars / planets / lines that
+  live outside it. `THREE.MeshBasicMaterial` with `FrontSide`,
+  `transparent: true`, `depthWrite: false`, `renderOrder: 0`. From inside
+  the shell (full zoom-in past R_SHELL) it intentionally vanishes —
+  back-face culling on FrontSide takes the surface out of view.
 - Yale BSC5 catalogue → packed binary build pipeline
   (`tools/build-catalogue.ts`) → runtime parser + per-star size/colour
   helpers (`src/astronomy/catalogue-loader.ts`) → 9096 stars rendered
@@ -179,25 +189,41 @@ Working end to end:
   `rotationFor(mode, gast)` helper with TDD'd invariants.
 - Pointer Events orbit camera (drag rotate, wheel zoom; pinch and inertia
   deferred). Reset-view button.
+- **Reference lines and graticule** (§4.6, pass 5b) — `scene/lines.ts`.
+  Independent layers on each sphere: celestial equator (with hourly tick
+  marks + RA labels), celestial graticule, ecliptic, NCP/SCP markers,
+  terrestrial equator + ticks, terrestrial graticule, prime meridian.
+  The graticule's spacing is user-selectable (15/30/45/90°) and shared
+  between the celestial and terrestrial grids. The celestial-equator
+  hour ticks have an HTML-overlay label per hour (`attachRaLabels`),
+  formatted as `0h…23h` or `0°…345°` per `state.raUnits`. Three colour
+  families keep the eye oriented: cool blue for celestial-frame refs,
+  solar gold for the ecliptic (its own hue, the Sun's path), warm green
+  for terrestrial refs.
+- **Constellations** (§4.7, pass 5d) — `scene/constellations.ts`,
+  `astronomy/constellation-loader.ts`, `tools/build-constellations.ts`.
+  Modern-Western stick figures + IAU 1930 boundaries (J2000), sourced
+  from `ofrohn/d3-celestial` (BSD-3, position-baked redistribution of
+  Stellarium and Davenhall — see CREDITS.md and the spec §6.2 deviation
+  note). Lines collapse into a single `THREE.LineSegments`, ditto
+  boundaries (subdivided to ~1° great-circle arcs at load time). Latin
+  names render as italic HTML labels at region centroids
+  (`attachConstellationLabels`). Lavender so they sit visually distinct
+  from the blue / gold / green reference families.
 - Bottom drawer with: UTC datetime, "Now", play/pause, rate ladder,
-  rotation toggle, reset view, magnitude slider. Wraps to two rows on
-  the default viewport — the intended behaviour for the eventual
-  collapsible bottom-sheet.
+  rotation toggle, reset view, magnitude slider, shell-opacity slider,
+  13 layer toggles, graticule grain selector, RA-units selector. Wraps
+  to multiple rows; the intended behaviour for the eventual collapsible
+  bottom-sheet design. Background is solid (`#14142a`), no backdrop blur,
+  to keep the globe from bleeding through.
 - Animation loop advances `state.instant` by `rate × dt` when playing.
-- URL fragment + localStorage persistence for date/camera/magnitude/rotation,
-  debounced. URL takes precedence on load. Layer toggles and playing/rate
-  are not persisted by design.
+- URL fragment + localStorage persistence for date / camera / magnitude /
+  rotation / gridGrain / raUnits, debounced. URL takes precedence on
+  load. Layer toggles, shell opacity, and playing/rate are not persisted
+  by design.
 
 ## What Still Needs Filling In
 
-- **Pass 5 territory (lines & constellations):** `scene/lines.ts`
-  (equator, ecliptic, prime meridian — §4.6) and `scene/constellations.ts`
-  + `tools/build-constellations.ts` (Stellarium modern Western lines +
-  IAU 1930 boundaries — §4.7) are stubs. The wireframe placeholder on
-  the celestial sphere should also be replaced with a proper §4.1
-  translucent solid `FrontSide` shell at this point; the current
-  `wireframe: true` rendering shows triangulation diagonals that aren't
-  designed in.
 - **Planet sprite art is placeholder.** `public/textures/planets/*.png`
   are simple ImageMagick-generated discs with minimal flourishes (Sun
   glow, Moon crater dots, Jupiter bands, Saturn rings). Designed for
@@ -207,16 +233,16 @@ Working end to end:
 - `controls/time-controller.ts` is just `RATES` + `advance()`; play/pause
   and the ±1 year scrub bar are wired in `ui/drawer.ts` directly for now.
 - `ui/sliders.ts`, `ui/toggles.ts` — stubs. Helper modules for the
-  eventual collapsible bottom-sheet design.
-- Camera pinch zoom, drag inertia, and elevation cardinal markers.
+  eventual collapsible bottom-sheet design (the drawer has 13 toggles
+  + 3 sliders + 2 pickers and is overdue for the collapse pattern).
+- Camera pinch zoom and drag inertia.
 - Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
-- Drawer has no UI toggles for `state.layers.*` yet — bodies and star
-  labels are on by default and currently can only be toggled by editing
-  state directly. Will land with the collapsible bottom-sheet.
+- Ecliptic 30° divisions (zodiac month markers) — spec §4.6 mentions
+  these as optional; not yet drawn.
 
 ## Test Coverage
 
-`deno task test` runs Vitest (12 files, 115 tests as of pass 4):
+`deno task test` runs Vitest (15 files, 170 tests as of pass 5):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. rotation-mode codes.
@@ -242,6 +268,16 @@ Working end to end:
   / interpolation invariants for `magToSize` and `bvToColor`.
 - `build-names` — IAU-CSN parse fixtures (HR-from-designation, 6-digit
   HD overflow, exoplanet-host fallthrough) + magnitude-cap filter.
+- `lines` — generators for parallels, meridians, ecliptic (poles &
+  equinoxes & solstices nail down the frame), and equator-tick endpoint
+  pairs across 15° / 30° / 90° grains.
+- `build-constellations` — d3-celestial GeoJSON parser fixtures, RA
+  normalisation across the −180..0 wrap, the 88-entry IAU abbreviation
+  table, and stable-output rounding / sorting.
+- `constellation-loader` — `raDecDegToVec3` reference directions,
+  spherical lerp, arc subdivision (per-edge step + on-sphere
+  invariant), boundary loop (no duplicate stitch vertex), centroid
+  (mean direction + antipodal-fallback).
 
 ## Gotchas — things we burned time on, don't re-burn it
 
@@ -264,9 +300,11 @@ collected here for fast lookup before debugging.
   objects (`camera`, `layers`) when updating: `set({ camera: { ...prev, azimuth: x } })`.
   Don't mutate in place — subscribers won't fire.
 - **Persistence allow-list is explicit.** `src/persistence.ts` has
-  `PERSISTED_SLICES = ['instant', 'camera', 'magnitudeLimit', 'rotationMode']`.
+  `PERSISTED_SLICES = ['instant', 'camera', 'magnitudeLimit', 'rotationMode', 'gridGrain', 'raUnits']`.
   Adding a new persistable slice means adding it there *and* extending
   `PersistedState` in `url-state.ts` *and* the envelope in `storage.ts`.
+  Layers and `celestialOpacity` are deliberately non-persisted (see the
+  test in `tests/persistence.test.ts` that pins this).
 - **Sun direction in fixed-Earth mode rotates with the celestial sphere.** It
   lives at sunDir RA/Dec on the celestial sphere; in rotating-Earth mode the
   sphere is fixed, but in fixed-Earth mode it rotates by `-gast`, taking the
@@ -295,11 +333,41 @@ collected here for fast lookup before debugging.
   `catalogue.positions` directly, so it has to redo the multiply. If
   R_CS ever changes, both call sites pick it up via the import from
   `scene/celestial-sphere`.
-- **R_CS = 1.1 leaves the camera shell just inside the celestial sphere
-  at full zoom-in.** `CAMERA_MIN_DISTANCE = 1.05` and R_CS = 1.1 means a
-  fully-zoomed camera ends up between Earth and the sphere — an
-  acceptable "looking at the dome from underneath" state, not a visual
-  break. Don't chase it as a bug.
+- **R_CS = 1.1, R_SHELL = 1.05, CAMERA_MIN_DISTANCE = 1.05.** R_SHELL
+  matches camera-min so a fully-zoomed camera sits exactly on the shell;
+  FrontSide back-face culling makes the shell vanish from view at that
+  zoom. Acceptable "looking at the dome from underneath" state, not a
+  visual break. Stars/planets at R_CS = 1.1 sit just outside the shell,
+  so the shell-opacity slider darkens Earth without dimming them.
+- **Render-order stack is explicit and matters.** Earth (opaque, default
+  pass) → shell (renderOrder 0, transparent) → reference lines &
+  constellation lines/boundaries & pole sprites (renderOrder 1) → stars
+  & planets & body sprites (renderOrder 2). Stars are additive-blended,
+  so layering them after the shell lets them shine through any opacity.
+  Lines have `depthWrite: false` so they don't occlude each other when
+  coincident.
+- **Catalogue & raDecToVec3 share one convention: +Y = NCP, +Z = RA 0,
+  +X = RA π/2.** Pre-pass-5c the BSC5 parser used `x = cosDec·cosRa`
+  (RA 0 → +X), 90° rotated from `raDecToVec3`'s `x = cosDec·sinRa` (RA 0
+  → +Z) used by Sun, planets, Earth's Greenwich anchor, and reference
+  lines. Verifiable with the Sirius-transits-Greenwich check: at GAST
+  6h45m, `earthRoot.rotation.y = 6h45m` puts Greenwich at mostly +X
+  world, which Sirius (RA 6h45m, Dec −16.7°) also reaches in the
+  raDecToVec3 convention but NOT in the old catalogue convention. The
+  pinned position-formula test in `tests/catalogue-loader.test.ts`
+  guards the corrected convention.
+- **d3-celestial vertex format: GeoJSON longitude convention (−180..+180).**
+  The build script (`tools/build-constellations.ts`) normalises to
+  0..360 for output JSON; the runtime loader trusts that and converts
+  degrees → radians at projection time. Don't pass raw d3-celestial
+  vertices straight to the loader — they'll wrap wrong.
+- **Star catalogue convention is shared with reference lines and
+  constellations.** `src/scene/lines.ts` and
+  `src/astronomy/constellation-loader.ts` both use the
+  `raDecToVec3`-style placement so any vertex on the celestial sphere
+  lands in the same frame as the catalogue points. If you ever change
+  the convention again, fix it in `parseBsc5Binary` AND check the line
+  generators / loader still match.
 - **`modelViewMatrix` is vertex-only in `ShaderMaterial`.** Three.js's
   fragment shader prefix injects `viewMatrix` and `cameraPosition` but
   NOT `modelMatrix`, `modelViewMatrix`, or `projectionMatrix`. Using

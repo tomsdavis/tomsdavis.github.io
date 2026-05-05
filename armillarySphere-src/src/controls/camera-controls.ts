@@ -6,7 +6,10 @@
 import type { AppState, Store } from '../state';
 
 export const CAMERA_MIN_DISTANCE = 1.05;
-export const CAMERA_MAX_DISTANCE = 3;
+// Default camera distance is 3.0 (see defaultState); MAX bumped from 3 to 5
+// in pass 5d to leave headroom above the default and keep the globe clear of
+// the bottom drawer at typical viewports.
+export const CAMERA_MAX_DISTANCE = 5;
 export const ELEVATION_LIMIT = Math.PI / 2 - 0.01;
 
 const DRAG_SENSITIVITY = 0.005;
@@ -49,7 +52,7 @@ export interface CameraControls {
   resetView(): void;
 }
 
-const DEFAULT_CAMERA: CameraSlice = { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 2.5 };
+const DEFAULT_CAMERA: CameraSlice = { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 3.0 };
 
 export function attachCameraControls(opts: {
   element: HTMLElement;

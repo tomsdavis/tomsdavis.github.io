@@ -4,10 +4,17 @@
 // adjacent to its sub-stellar point on Earth from any external angle.
 // Constraint: R_CS must stay above CAMERA_MIN_DISTANCE so the camera shell
 // doesn't end up outside the celestial sphere when zoomed in.
+//
+// R_SHELL is the radius of the rendered translucent shell, deliberately
+// SMALLER than R_CS so the shell sits BETWEEN Earth and the celestial-sphere
+// objects (stars, planets, lines). Increasing the shell's opacity therefore
+// progressively hides Earth without dimming the celestial objects, which
+// remain outside the shell from any external camera angle.
 
 import * as THREE from 'three';
 
 export const R_CS = 1.1;
+export const R_SHELL = 1.05;
 
 /**
  * Convert equatorial RA/Dec to a cartesian vector in the celestial-sphere
@@ -60,26 +67,35 @@ export interface CelestialSphereHandle {
 export function createCelestialSphere(): CelestialSphereHandle {
   const group = new THREE.Group();
 
-  const wireframe = new THREE.Mesh(
-    new THREE.SphereGeometry(R_CS, 48, 32),
-    new THREE.MeshBasicMaterial({
-      color: 0x223355,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.BackSide,
-      wireframe: true,
-    }),
-  );
-  group.add(wireframe);
+  // Spec §4.1: translucent FrontSide shell at R_SHELL (between Earth and
+  // R_CS). The shell renders BEFORE celestial-sphere objects (default
+  // renderOrder 0; stars and planets force renderOrder 1) so additive star
+  // light brightens on top of the shell-tinted Earth instead of being itself
+  // dimmed by the shell painted over it. depthWrite: false → alpha-blend
+  // only; at opacity 1 the blend equation collapses to the shell colour and
+  // Earth becomes invisible, no depth write needed. FrontSide + back-face
+  // culling means the shell vanishes when the camera zooms inside it (camera
+  // min 1.05 ≈ R_SHELL); same "looking at the dome from underneath" state
+  // CLAUDE.md already documents.
+  const geometry = new THREE.SphereGeometry(R_SHELL, 64, 32);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x223355,
+    transparent: true,
+    opacity: 0.15,
+    side: THREE.FrontSide,
+    depthWrite: false,
+  });
+  const shell = new THREE.Mesh(geometry, material);
+  group.add(shell);
 
   return {
     group,
     setOpacity(opacity) {
-      (wireframe.material as THREE.MeshBasicMaterial).opacity = opacity;
+      material.opacity = opacity;
     },
     dispose() {
-      wireframe.geometry.dispose();
-      (wireframe.material as THREE.Material).dispose();
+      geometry.dispose();
+      material.dispose();
     },
   };
 }

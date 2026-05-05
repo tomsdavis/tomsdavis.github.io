@@ -7,9 +7,12 @@ import { createEarth, type EarthHandle } from './earth';
 import { createCelestialSphere, raDecToVec3, type CelestialSphereHandle } from './celestial-sphere';
 import { createStars, type StarsHandle } from './stars';
 import { createPlanets, type PlanetsHandle } from './planets';
+import { createLines, type LinesHandle } from './lines';
+import { createConstellations, type ConstellationsHandle } from './constellations';
 import { rotationFor } from './rotation';
 import { sunDirection, gast } from '../astronomy/ephemeris';
 import { loadCatalogue } from '../astronomy/catalogue-loader';
+import { loadConstellations } from '../astronomy/constellation-loader';
 import type { AppState } from '../state';
 
 export interface SceneHandle {
@@ -19,6 +22,8 @@ export interface SceneHandle {
   celestial: CelestialSphereHandle;
   stars: StarsHandle;
   planets: PlanetsHandle;
+  lines: LinesHandle;
+  constellations: ConstellationsHandle;
   /** The parsed BSC5 catalogue, kept on the handle so the label overlay can
    *  look up world-space positions for named stars without re-fetching. */
   catalogue: import('../astronomy/catalogue-loader').Catalogue;
@@ -33,7 +38,9 @@ export interface SceneHandle {
   dispose(): void;
 }
 
-export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandle> {
+export async function createScene(canvas: HTMLCanvasElement, initial: {
+  gridGrain: number;
+}): Promise<SceneHandle> {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
 
@@ -47,10 +54,11 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
   const celestialRoot = new THREE.Group();
   scene.add(earthRoot, celestialRoot);
 
-  const [earth, catalogue, planets] = await Promise.all([
+  const [earth, catalogue, planets, constellationData] = await Promise.all([
     createEarth(),
     loadCatalogue('bsc5.bin'),
     createPlanets(),
+    loadConstellations('constellation-lines.json', 'constellation-boundaries.json'),
   ]);
   earthRoot.add(earth.mesh);
 
@@ -61,6 +69,13 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
   celestialRoot.add(stars.points);
 
   celestialRoot.add(planets.group);
+
+  const lines = createLines({ gridGrain: initial.gridGrain });
+  celestialRoot.add(lines.celestialGroup);
+  earthRoot.add(lines.terrestrialGroup);
+
+  const constellations = createConstellations(constellationData);
+  celestialRoot.add(constellations.group);
 
   // Per-frame ephemeris caching: planet positions only re-resolve when the
   // canonical instant actually changes. Sub-millisecond drift in JS Date
@@ -75,6 +90,8 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
     celestial,
     stars,
     planets,
+    lines,
+    constellations,
     catalogue,
     earthRoot,
     celestialRoot,
@@ -106,6 +123,11 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
       }
       planets.setVisible(state.layers.planets);
 
+      lines.apply(state.layers, state.gridGrain, state.raUnits);
+
+      constellations.setLinesVisible(state.layers.constellationLines);
+      constellations.setBoundariesVisible(state.layers.constellationBoundaries);
+
       const { azimuth, elevation, distance } = state.camera;
       camera.position.set(
         distance * Math.cos(elevation) * Math.sin(azimuth),
@@ -131,6 +153,8 @@ export async function createScene(canvas: HTMLCanvasElement): Promise<SceneHandl
       celestial.dispose();
       stars.dispose();
       planets.dispose();
+      lines.dispose();
+      constellations.dispose();
       renderer.dispose();
     },
   };

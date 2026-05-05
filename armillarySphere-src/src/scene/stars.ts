@@ -59,6 +59,10 @@ export function createStars(catalogue: Catalogue): StarsHandle {
   // The points already carry world-space coordinates (positions × R_CS),
   // so they live at the celestialRoot origin without further scaling.
   points.frustumCulled = false;
+  // Render last in the transparent pass: shell (0) → reference lines (1) →
+  // stars (2). Additive star light layers on top of shell-tinted Earth and
+  // any line crossings, untinted itself.
+  points.renderOrder = 2;
 
   return {
     points,

@@ -8,7 +8,7 @@ import { savePersisted } from './storage';
 const DEBOUNCE_MS = 250;
 
 const PERSISTED_SLICES: ReadonlyArray<keyof AppState> = [
-  'instant', 'camera', 'magnitudeLimit', 'rotationMode',
+  'instant', 'camera', 'magnitudeLimit', 'rotationMode', 'gridGrain', 'raUnits',
 ];
 
 export function attachPersistence(store: Store<AppState>, storage: Storage): Unsubscribe {
@@ -22,6 +22,8 @@ export function attachPersistence(store: Store<AppState>, storage: Storage): Uns
       camera: s.camera,
       magnitudeLimit: s.magnitudeLimit,
       rotationMode: s.rotationMode,
+      gridGrain: s.gridGrain,
+      raUnits: s.raUnits,
     };
     const fragment = encodeFragment(slice);
     if (globalThis.history?.replaceState) {

@@ -7,7 +7,8 @@
     "test": "deno run -A npm:vitest run",
     "test:watch": "deno run -A npm:vitest",
     "build-catalogue": "deno run -A tools/build-catalogue.ts",
-    "build-names": "deno run -A tools/build-names.ts"
+    "build-names": "deno run -A tools/build-names.ts",
+    "build-constellations": "deno run -A tools/build-constellations.ts"
   },
   "imports": {
     "three": "npm:three@^0.169",

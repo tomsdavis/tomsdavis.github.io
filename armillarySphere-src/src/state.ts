@@ -3,14 +3,33 @@
 
 export type RotationMode = 'rotating-earth' | 'fixed-earth';
 
+/** Display unit for right-ascension labels around the celestial equator. */
+export type RaUnits = 'hours' | 'degrees';
+
 export interface Layers {
-  equator: boolean;
+  // §4.6 — celestial sphere references
+  /** Celestial equator great circle + tick marks at every 15°, with RA labels. */
+  celestialEquator: boolean;
+  /** Full graticule (parallels + meridians) at `gridGrain` degrees. */
+  celestialGrid: boolean;
+  /** Ecliptic great circle (the Sun's annual path). */
   ecliptic: boolean;
+  /** N/S markers at the celestial poles. */
+  poles: boolean;
+  // §4.6 — terrestrial references (Earth)
+  /** Terrestrial equator + 15° tick marks. */
+  terrestrialEquator: boolean;
+  /** Earth lat/lon graticule at `gridGrain` degrees. */
+  terrestrialGrid: boolean;
+  /** Earth 0° meridian, highlighted. */
   primeMeridian: boolean;
+  // §4.7 — constellations
   constellationLines: boolean;
   constellationBoundaries: boolean;
   constellationLabels: boolean;
+  // §4.4 / §4.5 — star + body labels
   starLabels: boolean;
+  // §4.1 / §4.5
   terminator: boolean;
   /** §4.5 — Sun, Moon, and the five classical planets as a single layer. */
   planets: boolean;
@@ -32,6 +51,13 @@ export interface AppState {
   // §4.1 — rotating Earth (default) vs fixed Earth with sky rotating westward
   rotationMode: RotationMode;
 
+  // §4.6 — graticule spacing in degrees (15 / 30 / 45 / 90). Applies to both
+  // the celestial and terrestrial grids when their layer is on.
+  gridGrain: number;
+
+  // §4.6 — celestial-equator RA tick label units.
+  raUnits: RaUnits;
+
   // §4.3 — time playback (NOT persisted; resets to paused on each visit)
   playing: boolean;
   rate: number;
@@ -52,15 +78,21 @@ export interface Store<S extends object> {
 export function defaultState(): AppState {
   return {
     instant: new Date(),
-    camera: { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 2.5 },
+    camera: { azimuth: Math.PI / 4, elevation: Math.PI / 6, distance: 3.0 },
     magnitudeLimit: 5.0,
     celestialOpacity: 0.15,
     rotationMode: 'rotating-earth',
+    gridGrain: 30,
+    raUnits: 'hours',
     playing: false,
     rate: 3600,
     layers: {
-      equator: true,
+      celestialEquator: true,
+      celestialGrid: false,
       ecliptic: true,
+      poles: false,
+      terrestrialEquator: false,
+      terrestrialGrid: false,
       primeMeridian: false,
       constellationLines: true,
       constellationBoundaries: false,

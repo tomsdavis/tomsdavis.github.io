@@ -65,10 +65,17 @@ export const parseBsc5Binary = (input: ArrayBufferLike | ArrayBufferView): Catal
     magnitudes[i] = view.getFloat32(off + 12, true);
     bv[i] = view.getFloat32(off + 16, true);
 
+    // Equatorial → cartesian: +Y is the north celestial pole, +Z is RA = 0.
+    // Matches raDecToVec3 in scene/celestial-sphere.ts so that catalogue
+    // positions, planet/Sun positions, and reference lines all live in one
+    // shared frame. (Until pass 5c this used x = cosDec·cosRa / z = cosDec·sinRa,
+    // which placed RA = 0 at +X — 90° rotated away from the rest of the system,
+    // and would have left constellation lines visibly misaligned with the
+    // equator and ecliptic added in pass 5b.)
     const cosDec = Math.cos(dec);
-    positions[i * 3 + 0] = cosDec * Math.cos(ra);
+    positions[i * 3 + 0] = cosDec * Math.sin(ra);
     positions[i * 3 + 1] = Math.sin(dec);
-    positions[i * 3 + 2] = cosDec * Math.sin(ra);
+    positions[i * 3 + 2] = cosDec * Math.cos(ra);
   }
 
   return { count, hr, positions, magnitudes, bv };

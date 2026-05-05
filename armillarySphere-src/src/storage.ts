@@ -14,6 +14,8 @@ interface StoredEnvelope {
     cam?: [number, number, number];
     mag?: number;
     rot?: PersistedState['rotationMode'];
+    grn?: number;
+    ru?: PersistedState['raUnits'];
   };
 }
 
@@ -25,6 +27,8 @@ export function savePersisted(slice: PersistedState, storage: Storage): void {
       cam: [slice.camera.azimuth, slice.camera.elevation, slice.camera.distance],
       mag: slice.magnitudeLimit,
       rot: slice.rotationMode,
+      grn: slice.gridGrain,
+      ru: slice.raUnits,
     },
   };
   storage.setItem(STORAGE_KEY, JSON.stringify(envelope));
@@ -56,6 +60,8 @@ export function loadPersisted(storage: Storage): Partial<PersistedState> | null 
   }
   if (typeof d.mag === 'number' && Number.isFinite(d.mag)) out.magnitudeLimit = d.mag;
   if (d.rot === 'rotating-earth' || d.rot === 'fixed-earth') out.rotationMode = d.rot;
+  if (typeof d.grn === 'number' && Number.isFinite(d.grn) && d.grn > 0) out.gridGrain = d.grn;
+  if (d.ru === 'hours' || d.ru === 'degrees') out.raUnits = d.ru;
 
   return out;
 }
@@ -89,6 +95,8 @@ function pickPersisted(base: AppState, p: Partial<PersistedState>): Partial<AppS
   if (p.camera !== undefined) out.camera = p.camera;
   if (p.magnitudeLimit !== undefined) out.magnitudeLimit = p.magnitudeLimit;
   if (p.rotationMode !== undefined) out.rotationMode = p.rotationMode;
+  if (p.gridGrain !== undefined) out.gridGrain = p.gridGrain;
+  if (p.raUnits !== undefined) out.raUnits = p.raUnits;
   void base;
   return out;
 }

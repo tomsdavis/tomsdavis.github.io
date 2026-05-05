@@ -21,7 +21,7 @@ describe('parseBsc5Binary', () => {
     expect(cat.bv[0]).toBeCloseTo(0.07, 5);
   });
 
-  it('emits unit-sphere positions: x=cos(Dec)cos(RA), y=sin(Dec), z=cos(Dec)sin(RA)', () => {
+  it('emits unit-sphere positions: x=cos(Dec)sin(RA), y=sin(Dec), z=cos(Dec)cos(RA)', () => {
     const records: Bsc5Record[] = [
       { hr: 1, raJ2000: 0, decJ2000: 0, vMag: 0, bvIndex: 0 },
       { hr: 2, raJ2000: Math.PI / 2, decJ2000: 0, vMag: 0, bvIndex: 0 },
@@ -29,14 +29,15 @@ describe('parseBsc5Binary', () => {
     ];
     const cat = parseBsc5Binary(encodeCatalogue(records).buffer);
 
-    // RA=0, Dec=0 → +X
-    expect(cat.positions[0]).toBeCloseTo(1, 5);
+    // Convention matches raDecToVec3: +Y = NCP, +Z = RA 0.
+    // RA=0, Dec=0 → +Z
+    expect(cat.positions[0]).toBeCloseTo(0, 5);
     expect(cat.positions[1]).toBeCloseTo(0, 5);
-    expect(cat.positions[2]).toBeCloseTo(0, 5);
-    // RA=π/2, Dec=0 → +Z
-    expect(cat.positions[3]).toBeCloseTo(0, 5);
+    expect(cat.positions[2]).toBeCloseTo(1, 5);
+    // RA=π/2, Dec=0 → +X
+    expect(cat.positions[3]).toBeCloseTo(1, 5);
     expect(cat.positions[4]).toBeCloseTo(0, 5);
-    expect(cat.positions[5]).toBeCloseTo(1, 5);
+    expect(cat.positions[5]).toBeCloseTo(0, 5);
     // RA=0, Dec=π/2 → +Y (north celestial pole)
     expect(cat.positions[6]).toBeCloseTo(0, 5);
     expect(cat.positions[7]).toBeCloseTo(1, 5);

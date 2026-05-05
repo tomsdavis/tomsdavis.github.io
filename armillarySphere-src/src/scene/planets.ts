@@ -95,6 +95,10 @@ export async function createPlanets(): Promise<PlanetsHandle> {
       // needs a frustum-cull bounding sphere wide enough that the quad isn't
       // culled when the centre is near the edge of the camera frustum.
       mesh.frustumCulled = false;
+      // Render after the celestial-sphere shell (0) and reference lines (1)
+      // so opacity hides Earth and lines pass behind, without occluding the
+      // planets that sit on R_CS.
+      mesh.renderOrder = 2;
       group.add(mesh);
       slots[name] = { object: mesh, phasedMaterial: material, texture: tex, material, geometry: phasedGeometry };
     } else {
@@ -107,6 +111,7 @@ export async function createPlanets(): Promise<PlanetsHandle> {
       const sprite = new THREE.Sprite(material);
       sprite.scale.set(scale, scale, 1);
       sprite.name = name;
+      sprite.renderOrder = 2;
       group.add(sprite);
       slots[name] = { object: sprite, texture: tex, material };
     }

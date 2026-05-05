@@ -8,6 +8,8 @@ describe('url-state', () => {
       camera: { azimuth: 1.234, elevation: 0.567, distance: 3.5 },
       magnitudeLimit: 5.0,
       rotationMode: 'fixed-earth' as const,
+      gridGrain: 15,
+      raUnits: 'degrees' as const,
     };
     const fragment = encodeFragment(state);
     const decoded = decodeFragment(fragment);
@@ -18,14 +20,18 @@ describe('url-state', () => {
     expect(decoded.camera?.distance).toBeCloseTo(state.camera.distance, 3);
     expect(decoded.magnitudeLimit).toBeCloseTo(state.magnitudeLimit, 3);
     expect(decoded.rotationMode).toBe('fixed-earth');
+    expect(decoded.gridGrain).toBe(15);
+    expect(decoded.raUnits).toBe('degrees');
   });
 
-  it('encodes the documented fragment shape (t / cam / mag / rot)', () => {
+  it('encodes the documented fragment shape (t / cam / mag / rot / grn / ru)', () => {
     const state = {
       instant: new Date(0),
       camera: { azimuth: 0, elevation: 0, distance: 5 },
       magnitudeLimit: 5,
       rotationMode: 'rotating-earth' as const,
+      gridGrain: 30,
+      raUnits: 'hours' as const,
     };
     const fragment = encodeFragment(state);
 
@@ -33,6 +39,8 @@ describe('url-state', () => {
     expect(fragment).toMatch(/(^|&)cam=/);
     expect(fragment).toMatch(/(^|&)mag=/);
     expect(fragment).toMatch(/(^|&)rot=/);
+    expect(fragment).toMatch(/(^|&)grn=/);
+    expect(fragment).toMatch(/(^|&)ru=/);
     expect(fragment.startsWith('#')).toBe(false);
   });
 
@@ -40,13 +48,28 @@ describe('url-state', () => {
     const re = encodeFragment({
       instant: new Date(0), camera: { azimuth: 0, elevation: 0, distance: 5 },
       magnitudeLimit: 5, rotationMode: 'rotating-earth',
+      gridGrain: 30, raUnits: 'hours',
     });
     const fe = encodeFragment({
       instant: new Date(0), camera: { azimuth: 0, elevation: 0, distance: 5 },
       magnitudeLimit: 5, rotationMode: 'fixed-earth',
+      gridGrain: 30, raUnits: 'hours',
     });
     expect(re).toMatch(/(^|&)rot=re(&|$)/);
     expect(fe).toMatch(/(^|&)rot=fe(&|$)/);
+  });
+
+  it('uses compact ru codes (h / d) and round-trips both', () => {
+    expect(decodeFragment('ru=h').raUnits).toBe('hours');
+    expect(decodeFragment('ru=d').raUnits).toBe('degrees');
+    expect(decodeFragment('ru=potato').raUnits).toBeUndefined();
+  });
+
+  it('parses gridGrain as a positive number, ignoring junk', () => {
+    expect(decodeFragment('grn=15').gridGrain).toBe(15);
+    expect(decodeFragment('grn=0').gridGrain).toBeUndefined();
+    expect(decodeFragment('grn=-30').gridGrain).toBeUndefined();
+    expect(decodeFragment('grn=banana').gridGrain).toBeUndefined();
   });
 
   it('decodes both rot codes', () => {

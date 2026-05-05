@@ -31,6 +31,8 @@ describe('storage', () => {
         camera: { azimuth: 1, elevation: 0.5, distance: 4 },
         magnitudeLimit: 5,
         rotationMode: 'fixed-earth' as const,
+        gridGrain: 15,
+        raUnits: 'degrees' as const,
       };
       savePersisted(slice, storage);
       const loaded = loadPersisted(storage);
@@ -38,6 +40,8 @@ describe('storage', () => {
       expect(loaded?.camera).toEqual(slice.camera);
       expect(loaded?.magnitudeLimit).toBe(5);
       expect(loaded?.rotationMode).toBe('fixed-earth');
+      expect(loaded?.gridGrain).toBe(15);
+      expect(loaded?.raUnits).toBe('degrees');
     });
 
     it('returns null when nothing is stored', () => {
@@ -73,6 +77,8 @@ describe('storage', () => {
           camera: { azimuth: 0, elevation: 0, distance: 4 },
           magnitudeLimit: 3.5,
           rotationMode: 'fixed-earth',
+          gridGrain: 30,
+          raUnits: 'hours',
         },
         storage,
       );
@@ -88,6 +94,8 @@ describe('storage', () => {
           camera: { azimuth: 0, elevation: 0, distance: 4 },
           magnitudeLimit: 3.5,
           rotationMode: 'fixed-earth',
+          gridGrain: 30,
+          raUnits: 'hours',
         },
         storage,
       );
@@ -106,6 +114,8 @@ describe('storage', () => {
           camera: { azimuth: 0, elevation: 0, distance: 4 },
           magnitudeLimit: 3.5,
           rotationMode: 'fixed-earth',
+          gridGrain: 30,
+          raUnits: 'hours',
         },
         storage,
       );
@@ -124,11 +134,13 @@ describe('storage', () => {
           camera: { azimuth: 1, elevation: 0.5, distance: 4 },
           magnitudeLimit: 5,
           rotationMode: 'fixed-earth',
+          gridGrain: 30,
+          raUnits: 'hours',
         },
         storage,
       );
       const raw = storage.getItem(STORAGE_KEY)!;
-      expect(raw).not.toContain('equator');
+      expect(raw).not.toContain('celestialEquator');
       expect(raw).not.toContain('ecliptic');
       expect(raw).not.toContain('layers');
     });

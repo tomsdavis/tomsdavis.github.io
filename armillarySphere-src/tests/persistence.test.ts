@@ -51,7 +51,7 @@ describe('attachPersistence', () => {
     attachPersistence(store, storage);
 
     store.set({ celestialOpacity: 0.5 });
-    store.set({ layers: { ...store.get().layers, equator: false } });
+    store.set({ layers: { ...store.get().layers, celestialEquator: false } });
     vi.advanceTimersByTime(500);
 
     expect(setItem).not.toHaveBeenCalled();
