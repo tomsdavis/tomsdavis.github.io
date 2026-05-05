@@ -1,9 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { advance, RATES } from '../src/controls/time-controller';
+import { advance, formatRate, RATES } from '../src/controls/time-controller';
 
 describe('time-controller', () => {
   it('exposes the spec-defined rate ladder', () => {
     expect(RATES).toEqual([1, 60, 3600, 86400, 31_557_600]);
+  });
+
+  it('formatRate labels every ladder rung', () => {
+    expect(formatRate(1)).toBe('×1 (real time)');
+    expect(formatRate(60)).toBe('×60 (1 min/s)');
+    expect(formatRate(3600)).toBe('×3600 (1 hr/s)');
+    expect(formatRate(86_400)).toBe('×86400 (1 day/s)');
+    expect(formatRate(31_557_600)).toBe('×31.5M (1 yr/s)');
+  });
+
+  it('formatRate falls back to ×N for off-ladder values', () => {
+    expect(formatRate(7)).toBe('×7');
+    expect(formatRate(-60)).toBe('×-60');
   });
 
   it('advance() at ×1 = real time', () => {

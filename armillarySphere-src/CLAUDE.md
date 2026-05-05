@@ -58,7 +58,8 @@ src/
     constellation-loader.ts # constellation JSON parser (§6.2)
   ui/
     drawer.ts               # Bottom drawer / side panel (§5.1)
-    sliders.ts, toggles.ts
+    sliders.ts, toggles.ts  # Reusable factories used by drawer.ts
+    popover.ts              # Floating-panel primitive (Layers ▾, Display ▾)
     labels.ts               # Star + body label overlays
   shaders/
     earth.{vert,frag}.glsl, star.{vert,frag}.glsl, phased.{vert,frag}.glsl
@@ -116,7 +117,7 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## What's Real Today (post pass 5)
+## What's Real Today (post pass 6)
 
 Working end to end:
 
@@ -191,8 +192,10 @@ Working end to end:
   deferred). Reset-view button.
 - **Reference lines and graticule** (§4.6, pass 5b) — `scene/lines.ts`.
   Independent layers on each sphere: celestial equator (with hourly tick
-  marks + RA labels), celestial graticule, ecliptic, NCP/SCP markers,
-  terrestrial equator + ticks, terrestrial graticule, prime meridian.
+  marks + RA labels), celestial graticule, ecliptic, NCP/SCP markers
+  alongside ♈ / ♎ equinox markers (pass 6, gold so they read as part of
+  the ecliptic family), terrestrial equator + ticks, terrestrial
+  graticule, prime meridian.
   The graticule's spacing is user-selectable (15/30/45/90°) and shared
   between the celestial and terrestrial grids. The celestial-equator
   hour ticks have an HTML-overlay label per hour (`attachRaLabels`),
@@ -210,12 +213,19 @@ Working end to end:
   names render as italic HTML labels at region centroids
   (`attachConstellationLabels`). Lavender so they sit visually distinct
   from the blue / gold / green reference families.
-- Bottom drawer with: UTC datetime, "Now", play/pause, rate ladder,
-  rotation toggle, reset view, magnitude slider, shell-opacity slider,
-  13 layer toggles, graticule grain selector, RA-units selector. Wraps
-  to multiple rows; the intended behaviour for the eventual collapsible
-  bottom-sheet design. Background is solid (`#14142a`), no backdrop blur,
-  to keep the globe from bleeding through.
+- Bottom drawer (§5.1, pass 6 restructure) — `ui/drawer.ts` is now pure
+  assembly over three small helpers: `ui/sliders.ts` (`createSlider`),
+  `ui/toggles.ts` (`createToggle`), `ui/popover.ts` (`createPopover`).
+  Always-visible primary row: UTC datetime, "Now", play/pause, rate
+  ladder, rotation toggle, reset view, **Layers ▾**, **Display ▾**.
+  The Layers popover groups the 13 visibility toggles into four
+  sub-headings (Celestial frame, Earth, Constellations, Bodies); the
+  Display popover holds the magnitude slider, shell-opacity slider,
+  graticule-grain picker, and RA-units picker. Only one popover can be
+  open at a time (module-level registry in `popover.ts`); outside-click
+  and Escape both dismiss. Background is solid (`#14142a`), no backdrop
+  blur. The drawer carries `z-index: 100` so its popover panels paint
+  above the absolute-positioned HTML label overlays.
 - Animation loop advances `state.instant` by `rate × dt` when playing.
 - URL fragment + localStorage persistence for date / camera / magnitude /
   rotation / gridGrain / raUnits, debounced. URL takes precedence on
@@ -230,11 +240,9 @@ Working end to end:
   drop-in replacement by higher-fidelity art (e.g. cropped NASA imagery,
   proper grayscale Moon for the phase shader to sample) without
   changing filenames or dimensions.
-- `controls/time-controller.ts` is just `RATES` + `advance()`; play/pause
-  and the ±1 year scrub bar are wired in `ui/drawer.ts` directly for now.
-- `ui/sliders.ts`, `ui/toggles.ts` — stubs. Helper modules for the
-  eventual collapsible bottom-sheet design (the drawer has 13 toggles
-  + 3 sliders + 2 pickers and is overdue for the collapse pattern).
+- `controls/time-controller.ts` exposes `RATES`, `advance()`, and
+  `formatRate()`; the ±1 year scrub bar from spec §4.3 still isn't
+  drawn. Date is set by direct datetime input today.
 - Camera pinch zoom and drag inertia.
 - Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
 - Ecliptic 30° divisions (zodiac month markers) — spec §4.6 mentions
@@ -242,7 +250,7 @@ Working end to end:
 
 ## Test Coverage
 
-`deno task test` runs Vitest (15 files, 170 tests as of pass 5):
+`deno task test` runs Vitest (15 files, 172 tests as of pass 6):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. rotation-mode codes.
@@ -253,7 +261,8 @@ Working end to end:
   phase at the 2025-01-13 Wolf Moon (full) and 2025-01-29 (new);
   `bodyToSunSceneDir` regression catching scene-projected-direction
   bugs for Venus; `bodyPhaseCos` ≈ ±1 at full/new moon.
-- `time-controller` — `advance()` at the documented rates.
+- `time-controller` — `advance()` at the documented rates;
+  `formatRate()` for every ladder rung + the off-ladder fallback.
 - `rotation` — `(earthY − celestialY) ≡ gast` invariant.
 - `camera-controls` — pure clamp / drag / wheel helpers.
 - `persistence` — debounce coalescing, non-persisted-slice gating.
@@ -387,6 +396,16 @@ collected here for fast lookup before debugging.
   `Astronomy.GeoVector(Sun)` and subtract — the regression test
   `differs significantly from Venus's scene-projected Sun direction`
   guards this.
+- **`#drawer` needs an explicit z-index above the label overlays.**
+  `#drawer` is `position: fixed` (own stacking context); the
+  `#star-labels` / `#body-labels` / `#ra-labels` /
+  `#constellation-labels` containers are `position: absolute` with no
+  z-index, so they don't establish stacking contexts but DO sit later
+  in document order than the drawer. Without a z-index on the drawer,
+  the labels paint on top, bleeding stars and constellation names
+  through any popover panel. `z-index: 100` on `#drawer` lifts the
+  whole drawer subtree (popover panels included) above them. If you
+  ever swap drawer for a non-fixed layout, re-think this.
 - **Phase shader is Earth-perspective, not camera-perspective.** Lit
   fraction at the disc centre is pinned to `cos(phase_angle)`,
   independent of where the camera is, so a full Moon stays fully lit

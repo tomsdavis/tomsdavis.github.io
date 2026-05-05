@@ -133,16 +133,16 @@ function arcsToSegments(arcs: ReadonlyArray<ReadonlyArray<THREE.Vector3>>): THRE
   return geom;
 }
 
-// --- Pole-marker labels ------------------------------------------------------
+// --- Cardinal-point sprites --------------------------------------------------
 
-/** Tiny text sprite used for N/S markers at the celestial poles. */
-function makePoleSprite(text: string, color: string): THREE.Sprite {
+/** Tiny text sprite — used for N/S poles and the ♈ / ♎ equinox markers. */
+function makeMarkerSprite(text: string, color: string, fontPx = 40): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = color;
-  ctx.font = 'bold 40px sans-serif';
+  ctx.font = `bold ${fontPx}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 32, 32);
@@ -302,15 +302,24 @@ function buildPrimeMeridian(radius: number, color: number): LineElement {
 
 function buildPoles(radius: number): LineElement {
   const group = new THREE.Group();
-  const north = makePoleSprite('N', '#dde6f0');
-  const south = makePoleSprite('S', '#dde6f0');
+  const north = makeMarkerSprite('N', '#dde6f0');
+  const south = makeMarkerSprite('S', '#dde6f0');
   north.position.set(0, radius, 0);
   south.position.set(0, -radius, 0);
-  group.add(north, south);
+
+  // First points of Aries (♈, vernal equinox, RA=0h Dec=0°) and Libra
+  // (♎, autumnal equinox, RA=12h Dec=0°). Drawn in the ecliptic gold so
+  // they read as "this is where the ecliptic meets the equator." Larger
+  // glyph because the astrological symbols render thinner than 'N'/'S'.
+  const aries = makeMarkerSprite('♈', '#f2c14e', 48);
+  const libra = makeMarkerSprite('♎', '#f2c14e', 48);
+  aries.position.copy(raDecToVec3(0, 0, radius));
+  libra.position.copy(raDecToVec3(Math.PI, 0, radius));
+  group.add(north, south, aries, libra);
   return {
     group,
     dispose() {
-      [north, south].forEach((s) => {
+      [north, south, aries, libra].forEach((s) => {
         (s.material as THREE.SpriteMaterial).map?.dispose();
         (s.material as THREE.SpriteMaterial).dispose();
       });
