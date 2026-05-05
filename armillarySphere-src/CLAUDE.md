@@ -161,9 +161,13 @@ Working end to end:
   the deferred pass-3 nit.
 - **Sun, Moon, and the five classical planets** (§4.5) rendered on the
   celestial sphere. Sun + Mars + Jupiter + Saturn render as flat
-  `THREE.Sprite`s with PNG textures in `public/textures/planets/`. Moon,
-  Mercury, and Venus render as billboarded quads with a custom phase
-  shader (`shaders/phased.{vert,frag}.glsl`). Sun and Moon render at
+  `THREE.Sprite`s with PNG textures in `public/textures/planets/`
+  (256×256 transparent PNGs cropped from public-domain NASA / ESA
+  imagery — see CREDITS.md). Moon, Mercury, and Venus render as
+  billboarded quads with a custom phase shader
+  (`shaders/phased.{vert,frag}.glsl`); their textures are
+  fully-illuminated full-disc views so the shader's lighting multiply
+  yields a clean terminator at any phase. Sun and Moon render at
   1.5× the planet sprite scale per the agreed visual policy. All seven
   bodies parent to celestialRoot so they ride along in fixed-Earth mode.
   Single layer toggle `state.layers.planets` gates both bodies and their
@@ -234,12 +238,6 @@ Working end to end:
 
 ## What Still Needs Filling In
 
-- **Planet sprite art is placeholder.** `public/textures/planets/*.png`
-  are simple ImageMagick-generated discs with minimal flourishes (Sun
-  glow, Moon crater dots, Jupiter bands, Saturn rings). Designed for
-  drop-in replacement by higher-fidelity art (e.g. cropped NASA imagery,
-  proper grayscale Moon for the phase shader to sample) without
-  changing filenames or dimensions.
 - `controls/time-controller.ts` exposes `RATES`, `advance()`, and
   `formatRate()`; the ±1 year scrub bar from spec §4.3 still isn't
   drawn. Date is set by direct datetime input today.
@@ -406,6 +404,24 @@ collected here for fast lookup before debugging.
   through any popover panel. `z-index: 100` on `#drawer` lifts the
   whole drawer subtree (popover panels included) above them. If you
   ever swap drawer for a non-fixed layout, re-think this.
+- **♈ / ♎ default to colour-emoji presentation.** Most platforms ship
+  the astrological-sign codepoints (U+2648 ♈, U+264E ♎, and the rest of
+  U+2648..U+2653) as colour-emoji glyphs in their default sans-serif
+  fallback chain — a red ram and green scales — and `ctx.fillStyle` is
+  ignored for colour-emoji glyphs. To get a monochrome line-art form
+  that takes the canvas fill colour, append the U+FE0E text variation
+  selector (`'♈︎'`) AND specify a serif font in the canvas
+  `font` string; sans-serif on most systems falls through to the colour
+  font even with VS-15. See `makeMarkerSprite` in `src/scene/lines.ts`.
+  Same trap will apply if anyone ever draws zodiac or planet symbols.
+- **Phased bodies need fully-illuminated source textures.** Moon /
+  Mercury / Venus textures are sampled by `shaders/phased.frag.glsl`
+  and multiplied by the computed Earth-perspective lighting, so the
+  source PNG must show the full Earth-facing disc as if at full phase.
+  Don't drop in an iconic-but-half-shadowed first-flyby image (e.g.
+  the famous MESSENGER Mercury) — the shader can only darken pixels,
+  not undo a baked-in terminator. Use a global mosaic projected as a
+  full disc instead. See CREDITS.md for the chosen sources.
 - **Phase shader is Earth-perspective, not camera-perspective.** Lit
   fraction at the disc centre is pinned to `cos(phase_angle)`,
   independent of where the camera is, so a full Moon stays fully lit

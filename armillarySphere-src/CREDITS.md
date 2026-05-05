@@ -27,18 +27,65 @@ Both textures live in `public/textures/`.
 ## Solar-system body sprites
 
 Files live in `public/textures/planets/`: `sun.png`, `moon.png`, `mercury.png`,
-`venus.png`, `mars.png`, `jupiter.png`, `saturn.png`. Each is a 128×128
-transparent PNG, ~0.8–4.5 KB.
+`venus.png`, `mars.png`, `jupiter.png`, `saturn.png`. Each is a 256×256
+transparent PNG, sourced from a public-domain (or, for the Moon,
+share-alike) full-disc image and processed identically: square-padded,
+luminance-keyed alpha (so the black sky drops out cleanly while
+preserving Saturn's faint outer rings and the Sun's corona), resized to
+256×256 with EXIF stripped. The Moon, Mercury, and Venus textures are
+fully-illuminated full-disc views — the phase shader handles the
+day/night terminator, so it expects an unshaded base texture.
 
-- Source: hand-rolled placeholder discs generated with ImageMagick during
-  pass 4 (2026-05-03). Each is a flat-coloured disc with a few minimal
-  identifying flourishes (Sun glow, Moon crater dots, Jupiter bands,
-  Saturn rings).
-- License: original work, public domain.
-- Status: **placeholders.** Intended to be swapped for higher-fidelity art
-  (e.g. cropped NASA imagery for the planets, a proper grayscale Moon
-  texture for the phase shader to sample) without changing filenames or
-  dimensions.
+### `sun.png`
+
+- Source: NASA / SDO Atmospheric Imaging Assembly, 304 Å channel,
+  2010-08-19. Wikimedia Commons file
+  `The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA's_Solar_Dynamics_Observatory_-_20100819.jpg`.
+- License: Public domain (NASA imagery).
+
+### `moon.png`
+
+- Source: Gregory H. Revera, "Full Moon 2010" (Wikimedia Commons file
+  `FullMoon2010.jpg`). Fully-illuminated full-disc photograph at 100%
+  phase.
+- License: CC BY-SA 3.0. Credit: "Gregory H. Revera, CC BY-SA 3.0,
+  via Wikimedia Commons."
+
+### `mercury.png`
+
+- Source: NASA / Johns Hopkins APL / Carnegie Institution / MESSENGER
+  global mosaic, centred on 0°N 0°E. Wikimedia Commons file
+  `Mercury_Globe-MESSENGER_mosaic_centered_at_0degN-0degE.jpg`. Chosen
+  over the famous first-flyby image because the latter is half in
+  shadow — wrong base for the phase shader.
+- License: Public domain (NASA imagery).
+
+### `venus.png`
+
+- Source: NASA / JPL Magellan radar mosaic rendered as a full-disc
+  globe view. Wikimedia Commons file `Venus_globe.jpg`.
+- License: Public domain (NASA imagery).
+
+### `mars.png`
+
+- Source: ESA / Rosetta OSIRIS true-colour image of Mars from the 2007
+  flyby. Wikimedia Commons file `OSIRIS_Mars_true_color.jpg`.
+- License: Public domain / CC BY-SA 3.0 IGO (ESA).
+
+### `jupiter.png`
+
+- Source: NASA / ESA / Hubble WFC3 image of Jupiter, 2014-04-21.
+  Wikimedia Commons file `Jupiter_and_its_shrunken_Great_Red_Spot.jpg`.
+- License: Public domain (NASA imagery).
+
+### `saturn.png`
+
+- Source: NASA / JPL-Caltech / SSI Cassini mosaic during equinox.
+  Wikimedia Commons file `Saturn_during_Equinox.jpg`. The source mosaic
+  contains a few tiny moons in frame; the build pipeline overpaints
+  the lower-left and right margins of the source before alpha-keying
+  to suppress them.
+- License: Public domain (NASA imagery).
 
 ## Spec deviation note
 

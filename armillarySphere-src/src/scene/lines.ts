@@ -135,14 +135,26 @@ function arcsToSegments(arcs: ReadonlyArray<ReadonlyArray<THREE.Vector3>>): THRE
 
 // --- Cardinal-point sprites --------------------------------------------------
 
-/** Tiny text sprite — used for N/S poles and the ♈ / ♎ equinox markers. */
-function makeMarkerSprite(text: string, color: string, fontPx = 40): THREE.Sprite {
+/** Tiny text sprite — used for N/S poles and the ♈ / ♎ equinox markers.
+ *
+ *  `font` defaults to bold sans-serif (right for 'N'/'S'). For the astrological
+ *  glyphs we override to a serif stack: most systems ship a colour-emoji form
+ *  of ♈ and ♎ in their default sans-serif fallback chain (red ram, green
+ *  scales), which ignores `fillStyle`. Serif fonts ship monochrome line-art
+ *  forms, so `fillStyle` actually paints them. */
+function makeMarkerSprite(
+  text: string,
+  color: string,
+  fontPx = 40,
+  font = 'sans-serif',
+  weight: 'bold' | 'normal' = 'bold',
+): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = color;
-  ctx.font = `bold ${fontPx}px sans-serif`;
+  ctx.font = `${weight} ${fontPx}px ${font}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 32, 32);
@@ -309,10 +321,13 @@ function buildPoles(radius: number): LineElement {
 
   // First points of Aries (♈, vernal equinox, RA=0h Dec=0°) and Libra
   // (♎, autumnal equinox, RA=12h Dec=0°). Drawn in the ecliptic gold so
-  // they read as "this is where the ecliptic meets the equator." Larger
-  // glyph because the astrological symbols render thinner than 'N'/'S'.
-  const aries = makeMarkerSprite('♈', '#f2c14e', 48);
-  const libra = makeMarkerSprite('♎', '#f2c14e', 48);
+  // they read as "this is where the ecliptic meets the equator." `︎`
+  // is the text-variation selector — without it most systems pick the
+  // colour-emoji forms (red ram / green scales) and `fillStyle` is
+  // ignored. Pairing it with a serif stack pushes the canvas toward a
+  // monochrome line-art glyph that takes the gold colour cleanly.
+  const aries = makeMarkerSprite('♈︎', '#f2c14e', 48, 'serif', 'normal');
+  const libra = makeMarkerSprite('♎︎', '#f2c14e', 48, 'serif', 'normal');
   aries.position.copy(raDecToVec3(0, 0, radius));
   libra.position.copy(raDecToVec3(Math.PI, 0, radius));
   group.add(north, south, aries, libra);
