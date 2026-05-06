@@ -72,9 +72,23 @@ describe('url-state', () => {
     expect(decodeFragment('grn=banana').gridGrain).toBeUndefined();
   });
 
-  it('decodes both rot codes', () => {
+  it('decodes all rot codes', () => {
     expect(decodeFragment('rot=re').rotationMode).toBe('rotating-earth');
     expect(decodeFragment('rot=fe').rotationMode).toBe('fixed-earth');
+    expect(decodeFragment('rot=sl').rotationMode).toBe('sidereal-lock');
+  });
+
+  it('round-trips sidereal-lock through encode → decode', () => {
+    const fragment = encodeFragment({
+      instant: new Date(0),
+      camera: { azimuth: 0, elevation: 0, distance: 5 },
+      magnitudeLimit: 5,
+      rotationMode: 'sidereal-lock',
+      gridGrain: 30,
+      raUnits: 'hours',
+    });
+    expect(fragment).toMatch(/(^|&)rot=sl(&|$)/);
+    expect(decodeFragment(fragment).rotationMode).toBe('sidereal-lock');
   });
 
   it('drops an unknown rot code rather than coercing it', () => {

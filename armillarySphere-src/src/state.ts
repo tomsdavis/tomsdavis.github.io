@@ -1,7 +1,7 @@
 // Spec §7: single source of truth for app state, with a small subscription API.
 // Modules subscribe to slices they care about. No global event bus, no framework.
 
-export type RotationMode = 'rotating-earth' | 'fixed-earth';
+export type RotationMode = 'rotating-earth' | 'fixed-earth' | 'sidereal-lock';
 
 /** Display unit for right-ascension labels around the celestial equator. */
 export type RaUnits = 'hours' | 'degrees';

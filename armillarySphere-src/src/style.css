@@ -281,3 +281,22 @@ html, body {
   user-select: none;
   will-change: transform;
 }
+
+/* Pass 7b: floating year readout, visible only outside the picker's 4-digit
+   year range or when sidereal-lock rotation mode is engaged. */
+#year-readout {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  color: #f4ecd0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  user-select: none;
+}
+
+#year-readout[hidden] {
+  display: none;
+}

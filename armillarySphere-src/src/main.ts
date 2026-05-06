@@ -5,6 +5,7 @@ import { attachCameraControls } from './controls/camera-controls';
 import { attachPersistence } from './persistence';
 import { attachDrawer } from './ui/drawer';
 import { attachLabels, attachBodyLabels, attachRaLabels, attachConstellationLabels } from './ui/labels';
+import { attachYearReadout } from './ui/year-readout';
 import { advance } from './controls/time-controller';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -36,6 +37,7 @@ const constellationLabels = attachConstellationLabels({
   centroids: scene.constellations.centroids,
   container: overlay,
 });
+attachYearReadout({ container: overlay, store });
 
 const resize = () => {
   scene.resize(window.innerWidth, window.innerHeight);

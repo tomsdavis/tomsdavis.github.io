@@ -20,5 +20,11 @@ export function rotationFor(mode: RotationMode, gastRad: number): RotationApplic
       return { earthY: gastRad, celestialY: 0 };
     case 'fixed-earth':
       return { earthY: 0, celestialY: -gastRad };
+    case 'sidereal-lock':
+      // TODO(pass 7b): override earthY = celestialY = 0 regardless of GAST,
+      // so year-scale scrubbing isolates precession. Falls through to
+      // fixed-earth for now so the type compiles; the dedicated UI control
+      // for this mode also lands in pass 7b.
+      return rotationFor('fixed-earth', gastRad);
   }
 }

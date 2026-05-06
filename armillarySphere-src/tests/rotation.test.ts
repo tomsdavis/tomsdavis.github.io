@@ -18,6 +18,9 @@ describe('rotationFor', () => {
   });
 
   it('preserves the (earthY − celestialY) ≡ gast invariant in either mode', () => {
+    // Scoped to the two physically-correct modes. 'sidereal-lock' breaks this
+    // invariant by design — it freezes diurnal phase so year-scale scrubbing
+    // isolates precession (pass 7b).
     for (const gast of [0, 0.1, Math.PI / 2, Math.PI, 3 * Math.PI / 2, 6.28, 100]) {
       for (const mode of ['rotating-earth', 'fixed-earth'] as const) {
         const { earthY, celestialY } = rotationFor(mode, gast);

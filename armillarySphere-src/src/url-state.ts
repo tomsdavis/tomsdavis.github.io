@@ -16,10 +16,12 @@ export interface PersistedState {
 const ROT_TO_CODE: Record<RotationMode, string> = {
   'rotating-earth': 're',
   'fixed-earth': 'fe',
+  'sidereal-lock': 'sl',
 };
 const CODE_TO_ROT: Record<string, RotationMode> = {
   re: 'rotating-earth',
   fe: 'fixed-earth',
+  sl: 'sidereal-lock',
 };
 
 const RA_TO_CODE: Record<RaUnits, string> = { hours: 'h', degrees: 'd' };
