@@ -10,7 +10,7 @@ import { createPlanets, type PlanetsHandle } from './planets';
 import { createLines, type LinesHandle } from './lines';
 import { createConstellations, type ConstellationsHandle } from './constellations';
 import { rotationFor } from './rotation';
-import { sunDirection, gast } from '../astronomy/ephemeris';
+import { sunDirection, gast, precessionRotation } from '../astronomy/ephemeris';
 import { loadCatalogue } from '../astronomy/catalogue-loader';
 import { loadConstellations } from '../astronomy/constellation-loader';
 import type { AppState } from '../state';
@@ -29,6 +29,10 @@ export interface SceneHandle {
   catalogue: import('../astronomy/catalogue-loader').Catalogue;
   earthRoot: THREE.Group;
   celestialRoot: THREE.Group;
+  /** Sub-group inside celestialRoot that carries the J2000→of-date precession
+   *  transform (spec §8.2). All celestial-frame children parent to this; the
+   *  outer celestialRoot still owns the diurnal rotation. */
+  celestialJ2000Root: THREE.Group;
   /** Apply state to the scene (rotation, sun direction, opacity, …). */
   apply(state: AppState): void;
   /** Render once. */
@@ -52,6 +56,18 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
 
   const earthRoot = new THREE.Group();
   const celestialRoot = new THREE.Group();
+  // celestialJ2000Root carries the J2000→of-date precession matrix (spec
+  // §8.2). Only J2000-stored objects parent here: BSC5 stars (J2000) and
+  // d3-celestial constellation lines/boundaries (J2000 per CREDITS.md).
+  // Sun/planets, reference lines, and the shell stay under celestialRoot —
+  // they're already in the of-date scene frame (Sun/planets via the of-date
+  // bodyDirection; reference lines built from raDecToVec3, which IS the
+  // of-date frame the moment we apply precession to the J2000 stuff). The
+  // shell is rotationally symmetric so it doesn't matter; keeping it on
+  // celestialRoot avoids any depth-sorting subtlety.
+  const celestialJ2000Root = new THREE.Group();
+  celestialJ2000Root.matrixAutoUpdate = false;
+  celestialRoot.add(celestialJ2000Root);
   scene.add(earthRoot, celestialRoot);
 
   const [earth, catalogue, planets, constellationData] = await Promise.all([
@@ -66,7 +82,7 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
   celestialRoot.add(celestial.group);
 
   const stars = createStars(catalogue);
-  celestialRoot.add(stars.points);
+  celestialJ2000Root.add(stars.points);
 
   celestialRoot.add(planets.group);
 
@@ -75,7 +91,7 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
   earthRoot.add(lines.terrestrialGroup);
 
   const constellations = createConstellations(constellationData);
-  celestialRoot.add(constellations.group);
+  celestialJ2000Root.add(constellations.group);
 
   // Per-frame ephemeris caching: planet positions only re-resolve when the
   // canonical instant actually changes. Sub-millisecond drift in JS Date
@@ -95,6 +111,7 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
     catalogue,
     earthRoot,
     celestialRoot,
+    celestialJ2000Root,
 
     apply(state) {
       const t = state.instant;
@@ -119,6 +136,9 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
       const tMs = t.getTime();
       if (tMs !== lastPlanetInstantMs) {
         planets.setPositions(t);
+        // Precession is per-instant only; recompute on the same trigger as
+        // ephemeris so we don't burn cycles per frame at high time rates.
+        celestialJ2000Root.matrix.copy(precessionRotation(t));
         lastPlanetInstantMs = tMs;
       }
       planets.setVisible(state.layers.planets);

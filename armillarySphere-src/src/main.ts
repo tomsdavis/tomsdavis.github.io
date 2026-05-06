@@ -61,13 +61,20 @@ scene.renderer.setAnimationLoop((tNow) => {
   scene.apply(cur);
   labels.setVisible(cur.layers.starLabels);
   labels.setMagnitudeLimit(cur.magnitudeLimit);
-  labels.update(scene.camera, scene.celestialRoot);
+  // Star and constellation labels anchor on J2000 catalogue / centroid
+  // positions, so they project through celestialJ2000Root (precession
+  // matrix in their parent.matrixWorld). RA labels anchor on the of-date
+  // equator (raDecToVec3 → scene = of-date), so they go through
+  // celestialRoot only. Body labels read sprite world positions
+  // directly, picking up whichever ancestor chain the planets group sits
+  // under.
+  labels.update(scene.camera, scene.celestialJ2000Root);
   bodyLabels.setVisible(cur.layers.planets);
   bodyLabels.update(scene.camera);
   raLabels.setVisible(cur.layers.celestialEquator);
   raLabels.setUnits(cur.raUnits);
   raLabels.update(scene.camera, scene.celestialRoot);
   constellationLabels.setVisible(cur.layers.constellationLabels);
-  constellationLabels.update(scene.camera, scene.celestialRoot);
+  constellationLabels.update(scene.camera, scene.celestialJ2000Root);
   scene.render();
 });

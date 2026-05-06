@@ -3,6 +3,7 @@
 // how its output is rendered (§8.1).
 
 import * as Astronomy from 'astronomy-engine';
+import { Matrix4 } from 'three';
 
 export interface EquatorialDir {
   /** Right ascension, radians, range [0, 2π). */
@@ -139,4 +140,45 @@ export function moonPhase(date: Date): MoonPhase {
  */
 export function gast(date: Date): number {
   return Astronomy.SiderealTime(date) * HOURS_TO_RAD;
+}
+
+/**
+ * Spec §8.2: J2000 → mean-equator-of-date rotation, expressed in our scene
+ * frame (sceneX = RA π/2, sceneY = NCP, sceneZ = RA 0).
+ *
+ * astronomy-engine returns `Rotation_EQJ_EQD` in its own equatorial Cartesian
+ * frame (astroX = vernal equinox, astroY = RA 6h, astroZ = NCP). We conjugate
+ * by the same axis permutation used everywhere else in this codebase
+ * (sceneX = astroY, sceneY = astroZ, sceneZ = astroX) so the result operates
+ * directly on scene-frame vectors. That matters because we apply this matrix
+ * as the local transform of celestialJ2000Root (the sub-group between
+ * celestialRoot's diurnal rotation and the J2000 children — stars,
+ * constellation lines/boundaries, reference lines, planet sprites). The
+ * children are stored in the J2000 scene frame; the matrix rotates them into
+ * the of-date scene frame so they line up with the of-date Sun/planet
+ * ephemeris that bodyDirection already returns.
+ *
+ * For a permutation P with P · v_astro = v_scene, the conjugation
+ * (P · R · P⁻¹)[i][j] = R[perm[i]][perm[j]] where perm[i] = (i + 1) mod 3
+ * for our specific cyclic permutation. The matrix element formula is
+ * exercised in tests/precession.test.ts; don't tweak the indices without
+ * re-running them.
+ */
+export function precessionRotation(date: Date): Matrix4 {
+  // astronomy-engine stores RotationMatrix.rot[i][j] in column-major order:
+  // out.x = rot[0][0]*v.x + rot[1][0]*v.y + rot[2][0]*v.z (see RotateVector
+  // in astronomy.js). Equivalently the math-convention matrix is rot^T:
+  //   R_math[i][j] = rot[j][i].
+  // Conjugation by our axis permutation P (perm[i] = (i+1) mod 3) gives
+  //   Sm[i][j] = R_math[perm[i]][perm[j]] = rot[perm[j]][perm[i]].
+  // Three.Matrix4.set is row-major and operates as out = M · in.
+  const R = Astronomy.Rotation_EQJ_EQD(date).rot;
+  const m = new Matrix4();
+  m.set(
+    R[1]![1]!, R[2]![1]!, R[0]![1]!, 0,
+    R[1]![2]!, R[2]![2]!, R[0]![2]!, 0,
+    R[1]![0]!, R[2]![0]!, R[0]![0]!, 0,
+    0, 0, 0, 1,
+  );
+  return m;
 }

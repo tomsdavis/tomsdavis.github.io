@@ -95,9 +95,15 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - **Pure functions in `src/astronomy/` and `src/url-state.ts`.** Easy to unit-test;
   do test these. Don't unit-test scene assembly, DOM wiring, or network I/O.
 - **Coordinate epoch.** Stars are stored as J2000 in the catalogue; Sun/Moon/planet
-  ephemeris is requested "of-date." Precession (§8.2) is deferred — adding it later
-  is a single rotation matrix uniform plus a shader multiply.
-- **Date range clamped to ±100 years** in v1 because precession is not modelled.
+  ephemeris is requested "of-date." The scene frame IS the of-date frame, so
+  raDecToVec3 produces the visually correct direction for of-date sources
+  directly. Precession (§8.2) is implemented as a single J2000→of-date rotation
+  matrix on `celestialJ2000Root`, a sub-group between `celestialRoot` (diurnal
+  rotation) and the J2000-stored children. Only objects whose source data is
+  J2000 parent there: BSC5 stars and d3-celestial constellation lines /
+  boundaries. Sun/planets, reference lines, ♈/♎ markers, and the shell stay
+  under `celestialRoot` — applying precession to them would double-rotate. No
+  shader changes were needed; one matrix on a Group does the job.
 
 ## Build & Deploy
 
@@ -117,7 +123,7 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## What's Real Today (post pass 6)
+## What's Real Today (post pass 7a)
 
 Working end to end:
 
@@ -235,6 +241,26 @@ Working end to end:
   rotation / gridGrain / raUnits, debounced. URL takes precedence on
   load. Layer toggles, shell opacity, and playing/rate are not persisted
   by design.
+- **Precession of the equinoxes** (§8.2, pass 7a) — `precessionRotation(date)`
+  in `astronomy/ephemeris.ts` wraps `Astronomy.Rotation_EQJ_EQD` and
+  returns a `THREE.Matrix4` that operates directly on scene-frame vectors
+  (axis permutation conjugated in: `Sm[i][j] = rot[perm[j]][perm[i]]` with
+  `perm[i] = (i+1) mod 3`). The matrix is applied as the local transform
+  of `celestialJ2000Root`, a sub-group between `celestialRoot` (diurnal)
+  and the J2000 children. **Only J2000-stored objects parent there** —
+  BSC5 stars and d3-celestial constellations. Sun/planets and reference
+  lines stay under `celestialRoot` because their source data is already
+  of-date (or, for reference lines, frame-symmetric in the sense that
+  drawing the equator parametrically via `raDecToVec3` produces the
+  of-date equator the moment the scene frame *is* the of-date frame).
+  Recomputed on `state.instant` change, gated by the same `tMs` check
+  that already throttles per-frame ephemeris calls. Star and
+  constellation labels project through `celestialJ2000Root.matrixWorld`;
+  RA labels project through `celestialRoot` (of-date equator anchor);
+  body labels read sprite world positions directly. Date range is no
+  longer clamped to ±100 yr in concept, although the UX bits — extending
+  the datetime input range and drawing a precession trail of the NCP
+  path — are deferred to pass 7b.
 
 ## What Still Needs Filling In
 
@@ -248,7 +274,7 @@ Working end to end:
 
 ## Test Coverage
 
-`deno task test` runs Vitest (15 files, 172 tests as of pass 6):
+`deno task test` runs Vitest (16 files, 177 tests as of pass 7a):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. rotation-mode codes.
@@ -285,6 +311,11 @@ Working end to end:
   spherical lerp, arc subdivision (per-edge step + on-sphere
   invariant), boundary loop (no duplicate stitch vertex), centroid
   (mean direction + antipodal-fallback).
+- `precession` — identity-at-J2000 (≤30″ tolerance from nutation),
+  vernal-equinox 1.4° drift over a century, NCP great-circle drift
+  ~5.5° over a millennium (small-circle traversal of obliquity
+  radius), ecliptic-pole near-invariance, orthogonality (length
+  preservation on basis vectors and one off-axis direction).
 
 ## Gotchas — things we burned time on, don't re-burn it
 
@@ -431,9 +462,31 @@ collected here for fast lookup before debugging.
   view-space body-to-Sun direction as `L` — gives camera-perspective
   rendering that pedagogically confuses users (a full Moon dimming as
   they orbit). Don't switch back without explicit user agreement.
+- **astronomy-engine `RotationMatrix.rot[i][j]` is column-major.** Look
+  at `RotateVector` in `node_modules/astronomy-engine/astronomy.js`:
+  `out.x = rot[0][0]·v.x + rot[1][0]·v.y + rot[2][0]·v.z`, i.e.
+  `out[j] = Σ_i rot[i][j]·v[i]`. The math-convention rotation matrix
+  (the one that does `out = M·v`) is `rot^T`, not `rot` itself. Get
+  this wrong when conjugating into our scene frame and the matrix
+  silently does the wrong rotation — symptoms are correct identity
+  at J2000 and correct vernal-equinox drift (since both basis vectors
+  the test exercises lie on coordinate axes whose `rot` rows look like
+  their `rot` columns), but the ecliptic pole drifts ~10° per
+  millennium instead of staying near-invariant. The fix is one line in
+  `precessionRotation` in `src/astronomy/ephemeris.ts`; the
+  ecliptic-pole and pole-drift tests in `tests/precession.test.ts`
+  guard it.
+- **Pole "drift over a millennium" is ~5.5° great-circle, not 14°.**
+  Easy to think 360°/25,800 yr → 14° per 1000 yr and reach for that as
+  an expected value, but that's the azimuthal angle around the
+  ecliptic pole. The pole traces a small circle of obliquity radius
+  (≈23.44°), so the great-circle separation between the J2000 pole and
+  the of-date pole is `acos(cos²ε + sin²ε · cos 14°) ≈ 5.5°`. That's
+  what shows up visually and what the precession test pins.
 
 ## Out of Scope (v1, per spec §9)
 
-Internal ground-based viewpoint, precession, deep-sky objects, telescope
-simulation, search, glossary, localisation, coordinate display, saved scenes
-beyond shareable URL.
+Internal ground-based viewpoint, deep-sky objects, telescope simulation,
+search, glossary, localisation, coordinate display, saved scenes beyond
+shareable URL. (Precession was originally listed; pass 7a moved it
+in-scope.)
