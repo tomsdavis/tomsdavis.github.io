@@ -258,9 +258,24 @@ Working end to end:
   constellation labels project through `celestialJ2000Root.matrixWorld`;
   RA labels project through `celestialRoot` (of-date equator anchor);
   body labels read sprite world positions directly. Date range is no
-  longer clamped to ±100 yr in concept, although the UX bits — extending
-  the datetime input range and drawing a precession trail of the NCP
-  path — are deferred to pass 7b.
+  longer clamped to ±100 yr in concept, although the UX bits are
+  deferred to pass 7b:
+  - Extend the datetime input range (currently open-ended; ±2000 yr
+    feels right — visible precession, NCP near Vega at the far end,
+    no fringe astronomy-engine edge cases).
+  - **"Lock sidereal time" rotation mode** that overrides
+    `earthY = celestialY = 0` regardless of GAST. With diurnal phase
+    frozen, scrubbing the year shows precession in isolation —
+    otherwise GAST wraps thousands of times per year-step and the
+    Earth surface tumbles through random-looking phases that obscure
+    the precession signal. One new branch in `rotationFor`
+    (`src/scene/rotation.ts`); third state on the existing rotation
+    toggle. Pedagogical value is the whole point.
+  - Precession trail of the NCP path over ±13,000 yr (or one full
+    ~25,800 yr cycle): faint polyline through
+    `precessionRotation(t) · (0,1,0)` sampled every century, on the
+    celestial sphere. Visualises the cone the pole traces around the
+    ecliptic pole.
 
 ## What Still Needs Filling In
 
