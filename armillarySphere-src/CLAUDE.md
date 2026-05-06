@@ -123,7 +123,7 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## What's Real Today (post pass 7a)
+## What's Real Today (post pass 7b prep)
 
 Working end to end:
 
@@ -257,25 +257,27 @@ Working end to end:
   that already throttles per-frame ephemeris calls. Star and
   constellation labels project through `celestialJ2000Root.matrixWorld`;
   RA labels project through `celestialRoot` (of-date equator anchor);
-  body labels read sprite world positions directly. Date range is no
-  longer clamped to ±100 yr in concept, although the UX bits are
-  deferred to pass 7b:
-  - Extend the datetime input range (currently open-ended; ±2000 yr
-    feels right — visible precession, NCP near Vega at the far end,
-    no fringe astronomy-engine edge cases).
-  - **"Lock sidereal time" rotation mode** that overrides
-    `earthY = celestialY = 0` regardless of GAST. With diurnal phase
-    frozen, scrubbing the year shows precession in isolation —
-    otherwise GAST wraps thousands of times per year-step and the
-    Earth surface tumbles through random-looking phases that obscure
-    the precession signal. One new branch in `rotationFor`
-    (`src/scene/rotation.ts`); third state on the existing rotation
-    toggle. Pedagogical value is the whole point.
-  - Precession trail of the NCP path over ±13,000 yr (or one full
-    ~25,800 yr cycle): faint polyline through
-    `precessionRotation(t) · (0,1,0)` sampled every century, on the
-    celestial sphere. Visualises the cone the pole traces around the
-    ecliptic pole.
+  body labels read sprite world positions directly.
+- **Pass 7b prep — type widening + year readout** (no rendering change yet):
+  - `RotationMode` widened to `'rotating-earth' | 'fixed-earth' | 'sidereal-lock'`.
+    The third mode is reachable only via URL fragment for now; the drawer
+    toggle stays binary. URL code `'sl'` (matches the existing two-letter
+    `re` / `fe` convention; round-trips via `url-state.ts`).
+    `rotationFor('sidereal-lock', g)` currently falls through to
+    `'fixed-earth'` semantics with a TODO — the real
+    `earthY = celestialY = 0` semantics land in pass 7c.
+  - **Floating year readout** (`src/ui/year-readout.ts` +
+    `src/ui/year-readout-logic.ts`) — corner-pinned `#year-readout` div
+    in the top-right of the overlay. Visible only when (a) the year is
+    outside the `<input type="datetime-local">` picker's 0001–9999
+    range, OR (b) `rotationMode === 'sidereal-lock'`. Pure logic
+    (`formatYear`, `yearOutsidePickerRange`, `shouldShowYearReadout`)
+    is split into the `-logic.ts` sibling so the DOM shell stays test-free.
+    Astronomical-year-0 = 1 BCE; the formatter handles negative years.
+- **What pass 7c finishes** (plan in `private/pass-7c-precession-finish-plan.md`):
+  real sidereal-lock semantics in `rotationFor`, tri-state drawer toggle
+  (re → fe → sl → re), and the NCP precession trail polyline. The plan
+  is self-contained — a fresh context can pick it up directly.
 
 ## What Still Needs Filling In
 
@@ -289,10 +291,11 @@ Working end to end:
 
 ## Test Coverage
 
-`deno task test` runs Vitest (16 files, 177 tests as of pass 7a):
+`deno task test` runs Vitest (17 files, 188 tests as of pass 7b prep):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
-- `url-state` — fragment encode/decode incl. rotation-mode codes.
+- `url-state` — fragment encode/decode incl. all three rotation-mode
+  codes (`re` / `fe` / `sl`) and the sidereal-lock round-trip.
 - `storage` — versioned envelope + URL-precedence merge.
 - `ephemeris` — Sun at the 2000 equinox/solstices; GAST at J2000.0;
   sidereal-day round-trip; per-body sanity & elongation bounds for
@@ -331,6 +334,10 @@ Working end to end:
   ~5.5° over a millennium (small-circle traversal of obliquity
   radius), ecliptic-pole near-invariance, orthogonality (length
   preservation on basis vectors and one off-axis direction).
+- `year-readout` — pure-logic tests for `formatYear` (CE / BCE /
+  astronomical-year-0 = 1 BCE pivot, no thousands separator at any
+  scale), `yearOutsidePickerRange` (0001–9999 edges + out-of-range),
+  and the OR truth table for `shouldShowYearReadout`.
 
 ## Gotchas — things we burned time on, don't re-burn it
 
