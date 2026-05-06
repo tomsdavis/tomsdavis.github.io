@@ -123,7 +123,7 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 - `deno task test` runs Vitest under Deno via npm: imports.
 - Tests live in `tests/` mirroring `src/` structure.
 
-## What's Real Today (post pass 7b prep)
+## What's Real Today (post pass 7c)
 
 Working end to end:
 
@@ -258,14 +258,9 @@ Working end to end:
   constellation labels project through `celestialJ2000Root.matrixWorld`;
   RA labels project through `celestialRoot` (of-date equator anchor);
   body labels read sprite world positions directly.
-- **Pass 7b prep — type widening + year readout** (no rendering change yet):
+- **Pass 7b prep — type widening + year readout**:
   - `RotationMode` widened to `'rotating-earth' | 'fixed-earth' | 'sidereal-lock'`.
-    The third mode is reachable only via URL fragment for now; the drawer
-    toggle stays binary. URL code `'sl'` (matches the existing two-letter
-    `re` / `fe` convention; round-trips via `url-state.ts`).
-    `rotationFor('sidereal-lock', g)` currently falls through to
-    `'fixed-earth'` semantics with a TODO — the real
-    `earthY = celestialY = 0` semantics land in pass 7c.
+    URL codes `re` / `fe` / `sl` round-trip via `url-state.ts`.
   - **Floating year readout** (`src/ui/year-readout.ts` +
     `src/ui/year-readout-logic.ts`) — corner-pinned `#year-readout` div
     in the top-right of the overlay. Visible only when (a) the year is
@@ -274,10 +269,39 @@ Working end to end:
     (`formatYear`, `yearOutsidePickerRange`, `shouldShowYearReadout`)
     is split into the `-logic.ts` sibling so the DOM shell stays test-free.
     Astronomical-year-0 = 1 BCE; the formatter handles negative years.
-- **What pass 7c finishes** (plan in `private/pass-7c-precession-finish-plan.md`):
-  real sidereal-lock semantics in `rotationFor`, tri-state drawer toggle
-  (re → fe → sl → re), and the NCP precession trail polyline. The plan
-  is self-contained — a fresh context can pick it up directly.
+- **Pass 7c — sidereal-lock semantics, tri-state toggle, NCP precession
+  trail (§8.2 finished):**
+  - `rotationFor('sidereal-lock', g)` returns `{ earthY: 0, celestialY: 0 }`
+    regardless of GAST. Year-scale scrubbing therefore isolates precession
+    (the J2000→of-date matrix on `celestialJ2000Root`) and the Sun's RA/Dec
+    drift across the ecliptic, without GAST wrap noise overwhelming the
+    signal. Deliberately breaks the `(earthY − celestialY) ≡ gast`
+    invariant — pinned by a test so a future refactor can't accidentally
+    restore it.
+  - **Tri-state rotation toggle** in the drawer cycles
+    re → fe → sl → re via `nextRotationMode` in `src/ui/rotation-cycle.ts`
+    (one-line helper, fully test-covered). The button is now an inline
+    SVG of three letter glyphs — `e→` (Earth rotates), `C→` (Celestial
+    sphere rotates), `P` (Precession view, both frames frozen, no arrow).
+    `P` is rendered as a real `<text>` element so it inherits the system
+    font; `e→` and `C→` are hand-drawn paths with arrowheads. CSS picks
+    the active glyph from the existing `.fixed` / `.sidereal` button
+    classes via `[data-mode]` selectors (no JS glyph swap). Sidereal
+    mode also gets a violet button tint matching the trail line.
+  - **NCP precession trail** (`src/scene/precession-trail.ts`) — faint
+    violet `LineLoop` (256 vertices, obliquity-radius small circle)
+    traced **parametrically** around the J2000 ecliptic pole and parented
+    to `celestialJ2000Root`. Co-rotates with the stars in J2000 frame, so
+    the trail always passes through the of-date NCP at any epoch.
+    Toggled via a new `precessionTrail` layer (off by default; surfaced
+    in the Layers ▾ popover under "Celestial frame"). Parametric model
+    instead of sampling `precessionRotation(t)` because the IAU 2006
+    P03 polynomial diverges past ±2000 yr from J2000 — the original
+    sampled implementation produced a visible spiral plus a chord
+    cutting radially toward the ecliptic pole. See Gotchas.
+  - **100 yr/s rate** added to the rate ladder (×3.16G label).
+    Especially useful in sidereal-lock for visualising precession on a
+    human timescale; harmless in the other modes.
 
 ## What Still Needs Filling In
 
@@ -291,7 +315,7 @@ Working end to end:
 
 ## Test Coverage
 
-`deno task test` runs Vitest (17 files, 188 tests as of pass 7b prep):
+`deno task test` runs Vitest (18 files, 196 tests as of pass 7c):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. all three rotation-mode
@@ -305,7 +329,11 @@ Working end to end:
   bugs for Venus; `bodyPhaseCos` ≈ ±1 at full/new moon.
 - `time-controller` — `advance()` at the documented rates;
   `formatRate()` for every ladder rung + the off-ladder fallback.
-- `rotation` — `(earthY − celestialY) ≡ gast` invariant.
+- `rotation` — `(earthY − celestialY) ≡ gast` invariant in re/fe modes;
+  sidereal-lock freezes both roots regardless of GAST and pins the
+  deliberate invariant break.
+- `rotation-cycle` — tri-state drawer cycle (re → fe → sl → re):
+  one test per single-step transition + closure-after-three-clicks.
 - `camera-controls` — pure clamp / drag / wheel helpers.
 - `persistence` — debounce coalescing, non-persisted-slice gating.
 - `celestial-sphere` — `isOccludedByEarth` ray/sphere geometry: far
@@ -333,7 +361,12 @@ Working end to end:
   vernal-equinox 1.4° drift over a century, NCP great-circle drift
   ~5.5° over a millennium (small-circle traversal of obliquity
   radius), ecliptic-pole near-invariance, orthogonality (length
-  preservation on basis vectors and one off-axis direction).
+  preservation on basis vectors and one off-axis direction); plus
+  precession-trail geometry — every sample sits on the celestial
+  sphere at trail radius, and the samples cluster at obliquity
+  radius around the J2000 ecliptic pole (the latter is the
+  meaningful geometric assertion; if the J2000-ecliptic-pole
+  axis or radius regresses, this test fires).
 - `year-readout` — pure-logic tests for `formatYear` (CE / BCE /
   astronomical-year-0 = 1 BCE pivot, no thousands separator at any
   scale), `yearOutsidePickerRange` (0001–9999 edges + out-of-range),
@@ -505,6 +538,18 @@ collected here for fast lookup before debugging.
   (≈23.44°), so the great-circle separation between the J2000 pole and
   the of-date pole is `acos(cos²ε + sin²ε · cos 14°) ≈ 5.5°`. That's
   what shows up visually and what the precession test pins.
+- **`Astronomy.Rotation_EQJ_EQD` is the IAU 2006 P03 polynomial in
+  centuries-from-J2000.** It's accurate to ~milli-arcsec inside ±200 yr,
+  acceptable inside ±2000 yr, and produces complete garbage past that
+  — the T⁴ and T⁵ terms dominate at ±130 centuries (±13,000 yr). The
+  original pass-7c precession-trail implementation sampled
+  `precessionRotation(t)^T · NCP_J2000` across ±13,000 yr, which
+  rendered as a visible spiral plus a chord cutting radially toward
+  the ecliptic pole near Eltanin. Fix: don't sample the polynomial
+  across millennia just because Three.js lets you. For visualisations
+  of precession at the cycle scale, build a parametric small circle
+  around the J2000 ecliptic pole at obliquity radius — same physical
+  model, no polynomial extrapolation. See `src/scene/precession-trail.ts`.
 
 ## Out of Scope (v1, per spec §9)
 

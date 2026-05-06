@@ -21,10 +21,11 @@ export function rotationFor(mode: RotationMode, gastRad: number): RotationApplic
     case 'fixed-earth':
       return { earthY: 0, celestialY: -gastRad };
     case 'sidereal-lock':
-      // TODO(pass 7b): override earthY = celestialY = 0 regardless of GAST,
-      // so year-scale scrubbing isolates precession. Falls through to
-      // fixed-earth for now so the type compiles; the dedicated UI control
-      // for this mode also lands in pass 7b.
-      return rotationFor('fixed-earth', gastRad);
+      // Diurnal phase is frozen — earthY = celestialY = 0 regardless of GAST.
+      // Year-scale scrubbing then isolates precession (the J2000→of-date
+      // matrix on celestialJ2000Root) and the Sun's RA/Dec drift across the
+      // ecliptic, without GAST wrap noise overwhelming the signal. Breaks
+      // the (earthY − celestialY) ≡ gast invariant by design.
+      return { earthY: 0, celestialY: 0 };
   }
 }

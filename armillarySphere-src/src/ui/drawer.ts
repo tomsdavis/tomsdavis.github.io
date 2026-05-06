@@ -3,12 +3,55 @@
 // Display popovers carry the long tail of toggles, sliders, and pickers so
 // the always-visible row keeps the globe unobstructed on phones.
 
-import type { AppState, Store, Unsubscribe } from '../state';
+import type { AppState, RotationMode, Store, Unsubscribe } from '../state';
 import { RATES, formatRate } from '../controls/time-controller';
 import type { CameraControls } from '../controls/camera-controls';
 import { createSlider, type SliderHandle } from './sliders';
 import { createToggle, type ToggleHandle } from './toggles';
 import { createPopover, type PopoverHandle } from './popover';
+import { nextRotationMode } from './rotation-cycle';
+
+const ROTATION_TITLES: Record<RotationMode, string> = {
+  'rotating-earth': 'Rotation: rotating Earth (e→) — click for fixed Earth (C→)',
+  'fixed-earth':    'Rotation: fixed Earth (C→) — click for sidereal-lock (P)',
+  'sidereal-lock':  'Rotation: sidereal-lock (P), diurnal phase frozen — click for rotating Earth (e→)',
+};
+
+// Inline SVG for the rotation icon: three letter-glyphs, one shown at a time.
+// CSS uses the button's class state (.fixed / .sidereal) to pick the active
+// `[data-mode]` group, so the drawer doesn't need a glyph-swap callback.
+//
+// Glyphs:
+//   • rotating-earth  → lowercase 'e' whose tail extends into an arrowhead
+//                       (Earth rotates)
+//   • fixed-earth     → 'C' whose tail extends into an arrowhead
+//                       (Celestial sphere rotates)
+//   • sidereal-lock   → plain 'P' (Precession view; both frames frozen,
+//                       so no arrow)
+//
+// `currentColor` strokes pick up the button's text colour, so the .fixed /
+// .sidereal tints on #drawer button flow into the icon for free.
+const ROTATION_ICON_SVG = `<svg class="rotation-svg" viewBox="0 0 24 24" aria-hidden="true">
+  <g class="rotation-glyph" data-mode="rotating-earth"
+     fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <line x1="5" y1="12" x2="18" y2="12"/>
+    <path d="M 18 12 A 6 6 0 1 0 15.86 16.6"/>
+    <line x1="15.86" y1="16.6" x2="21" y2="21"/>
+    <polyline points="19.6,17.5 21,21 17.5,20.3"/>
+  </g>
+  <g class="rotation-glyph" data-mode="fixed-earth"
+     fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 17.2 9 A 6 6 0 1 0 17.2 15"/>
+    <line x1="17.2" y1="15" x2="21" y2="19"/>
+    <polyline points="20.2,15.6 21,19 17.7,18"/>
+  </g>
+  <text class="rotation-glyph" data-mode="sidereal-lock"
+        x="12" y="19" text-anchor="middle"
+        font-size="20" font-weight="700"
+        stroke="none" fill="currentColor">P</text>
+</svg>`;
 
 export interface Drawer {
   detach(): void;
@@ -33,6 +76,7 @@ const LAYER_GROUPS: ReadonlyArray<LayerGroup> = [
       { key: 'celestialGrid',    label: 'Graticule', title: 'Celestial graticule (parallels + meridians)' },
       { key: 'ecliptic',         label: 'Ecliptic', title: 'Ecliptic (Sun’s annual path)' },
       { key: 'poles',            label: 'Poles & equinoxes', title: 'N / S celestial poles and the ♈ / ♎ equinox markers' },
+      { key: 'precessionTrail',  label: 'Precession trail',  title: 'Path of the celestial pole over one ~25,800-yr precession cycle' },
     ],
   },
   {
@@ -92,7 +136,8 @@ export function attachDrawer(opts: {
     rateSel.appendChild(opt);
   }
 
-  const rotationBtn = button('rotation', '↻', 'Toggle rotation mode');
+  const rotationBtn = button('rotation', '', 'Toggle rotation mode');
+  rotationBtn.innerHTML = ROTATION_ICON_SVG;
   rotationBtn.setAttribute('aria-label', 'Toggle rotation mode');
   const resetBtn = button('reset', '⟲', 'Reset view');
 
@@ -195,12 +240,12 @@ export function attachDrawer(opts: {
   unsubs.push(store.subscribe('instant', (d) => { dt.value = toLocalDatetimeInputValue(d); }));
   unsubs.push(store.subscribe('rate', (r) => { rateSel.value = String(r); }));
   unsubs.push(store.subscribe('playing', (on) => { playBtn.textContent = on ? '⏸' : '▶'; }));
-  unsubs.push(store.subscribe('rotationMode', (m) => {
+  const applyRotationStyling = (m: RotationMode) => {
     rotationBtn.classList.toggle('fixed', m === 'fixed-earth');
-    rotationBtn.title = m === 'rotating-earth'
-      ? 'Rotation mode: rotating Earth (click for fixed Earth)'
-      : 'Rotation mode: fixed Earth (click for rotating Earth)';
-  }));
+    rotationBtn.classList.toggle('sidereal', m === 'sidereal-lock');
+    rotationBtn.title = ROTATION_TITLES[m];
+  };
+  unsubs.push(store.subscribe('rotationMode', applyRotationStyling));
   unsubs.push(store.subscribe('magnitudeLimit', (m) => magSlider.set(m)));
   unsubs.push(store.subscribe('celestialOpacity', (o) => shellSlider.set(o)));
   unsubs.push(store.subscribe('layers', (layers) => {
@@ -214,7 +259,7 @@ export function attachDrawer(opts: {
   dt.value = toLocalDatetimeInputValue(s0.instant);
   rateSel.value = String(s0.rate);
   playBtn.textContent = s0.playing ? '⏸' : '▶';
-  rotationBtn.classList.toggle('fixed', s0.rotationMode === 'fixed-earth');
+  applyRotationStyling(s0.rotationMode);
   grainPicker.select.value = String(s0.gridGrain);
   raPicker.select.value = s0.raUnits;
 
@@ -230,8 +275,7 @@ export function attachDrawer(opts: {
     if (Number.isFinite(r)) store.set({ rate: r });
   };
   const onRotation = () => {
-    const m = store.get().rotationMode;
-    store.set({ rotationMode: m === 'rotating-earth' ? 'fixed-earth' : 'rotating-earth' });
+    store.set({ rotationMode: nextRotationMode(store.get().rotationMode) });
   };
   const onReset = () => cameraControls.resetView();
   const onGrain = () => {

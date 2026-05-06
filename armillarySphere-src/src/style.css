@@ -72,15 +72,47 @@ html, body {
   border-color: #6a5a8e;
 }
 
+/* Sidereal-lock: an unusual mode where diurnal phase is frozen so year-scale
+   scrubbing isolates precession. Violet matches the precession-trail line so
+   the connection is visually obvious. */
+#drawer button.sidereal {
+  background: #4a3a7e;
+  border-color: #9c7cff;
+  color: #d8c8ff;
+}
+
 #drawer #playpause {
   font-size: 1.2rem;
   padding: 0 0.5rem;
 }
 
 #drawer #now,
-#drawer #rotation,
 #drawer #reset {
   padding: 0 0.5rem;
+}
+
+/* Rotation toggle: three letter-glyph SVG groups (e→ / C→ / P), one shown at
+   a time. The button's class state picks the visible glyph — no JS swap.
+   `currentColor` strokes mean the .fixed / .sidereal button tints flow into
+   the icon for free. */
+#drawer #rotation {
+  padding: 0 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#drawer #rotation .rotation-svg {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+#drawer #rotation .rotation-glyph {
+  display: none;
+}
+#drawer #rotation:not(.fixed):not(.sidereal) [data-mode="rotating-earth"],
+#drawer #rotation.fixed [data-mode="fixed-earth"],
+#drawer #rotation.sidereal [data-mode="sidereal-lock"] {
+  display: inline;
 }
 
 /* ---- popover triggers (Layers ▾, Display ▾) ---- */

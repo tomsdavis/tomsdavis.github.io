@@ -9,6 +9,7 @@ import { createStars, type StarsHandle } from './stars';
 import { createPlanets, type PlanetsHandle } from './planets';
 import { createLines, type LinesHandle } from './lines';
 import { createConstellations, type ConstellationsHandle } from './constellations';
+import { buildPrecessionTrail } from './precession-trail';
 import { rotationFor } from './rotation';
 import { sunDirection, gast, precessionRotation } from '../astronomy/ephemeris';
 import { loadCatalogue } from '../astronomy/catalogue-loader';
@@ -93,6 +94,9 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
   const constellations = createConstellations(constellationData);
   celestialJ2000Root.add(constellations.group);
 
+  const precessionTrail = buildPrecessionTrail();
+  celestialJ2000Root.add(precessionTrail);
+
   // Per-frame ephemeris caching: planet positions only re-resolve when the
   // canonical instant actually changes. Sub-millisecond drift in JS Date
   // comparison via getTime() is fine — the spec advances time by ≥ a few
@@ -147,6 +151,8 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
 
       constellations.setLinesVisible(state.layers.constellationLines);
       constellations.setBoundariesVisible(state.layers.constellationBoundaries);
+
+      precessionTrail.visible = state.layers.precessionTrail;
 
       const { azimuth, elevation, distance } = state.camera;
       camera.position.set(

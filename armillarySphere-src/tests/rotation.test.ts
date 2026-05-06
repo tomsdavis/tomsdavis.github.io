@@ -35,4 +35,20 @@ describe('rotationFor', () => {
     expect(re.earthY).not.toBe(fe.earthY);
     expect(re.celestialY).not.toBe(fe.celestialY);
   });
+
+  it('sidereal-lock: freezes both roots regardless of GAST', () => {
+    for (const gast of [0, 0.5, Math.PI, 2 * Math.PI, 100]) {
+      const r = rotationFor('sidereal-lock', gast);
+      expect(r.earthY).toBe(0);
+      expect(r.celestialY).toBe(0);
+    }
+  });
+
+  it('sidereal-lock: breaks the (earthY − celestialY) ≡ gast invariant by design', () => {
+    // Documenting the deliberate deviation as a test, so a future refactor
+    // doesn't accidentally restore the invariant and silently regress the
+    // mode's pedagogical purpose.
+    const r = rotationFor('sidereal-lock', 1.5);
+    expect(wrap(r.earthY - r.celestialY)).not.toBeCloseTo(wrap(1.5), 6);
+  });
 });

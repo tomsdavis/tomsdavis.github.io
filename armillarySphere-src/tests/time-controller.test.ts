@@ -3,7 +3,7 @@ import { advance, formatRate, RATES } from '../src/controls/time-controller';
 
 describe('time-controller', () => {
   it('exposes the spec-defined rate ladder', () => {
-    expect(RATES).toEqual([1, 60, 3600, 86400, 31_557_600]);
+    expect(RATES).toEqual([1, 60, 3600, 86400, 31_557_600, 3_155_760_000]);
   });
 
   it('formatRate labels every ladder rung', () => {
@@ -12,6 +12,7 @@ describe('time-controller', () => {
     expect(formatRate(3600)).toBe('×3600 (1 hr/s)');
     expect(formatRate(86_400)).toBe('×86400 (1 day/s)');
     expect(formatRate(31_557_600)).toBe('×31.5M (1 yr/s)');
+    expect(formatRate(3_155_760_000)).toBe('×3.16G (100 yr/s)');
   });
 
   it('formatRate falls back to ×N for off-ladder values', () => {

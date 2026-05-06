@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { precessionRotation } from '../src/astronomy/ephemeris';
+import { buildPrecessionTrail } from '../src/scene/precession-trail';
+import { R_CS } from '../src/scene/celestial-sphere';
 
 const ARCSEC = (Math.PI / 180) / 3600;
 
@@ -108,5 +110,50 @@ describe('precessionRotation', () => {
     // Allow up to 0.1°.
     const angleDeg = angleBetween(nep, moved) * 180 / Math.PI;
     expect(angleDeg).toBeLessThan(0.1);
+  });
+});
+
+describe('buildPrecessionTrail', () => {
+  it('produces samples on the celestial sphere at trail radius', () => {
+    const line = buildPrecessionTrail();
+    const pos = line.geometry.getAttribute('position');
+    expect(pos.count).toBeGreaterThanOrEqual(200);
+    const r = R_CS * 1.001;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      expect(Math.hypot(x, y, z)).toBeCloseTo(r, 5);
+    }
+  });
+
+  it('sample points cluster at obliquity radius around the J2000 ecliptic pole', () => {
+    // The of-date NCP traces a small circle of obliquity radius (≈23.44°)
+    // around the J2000 ecliptic pole. The mean of the samples (in J2000
+    // frame, since the trail vertices ARE J2000 by construction) should
+    // therefore lie near the J2000 ecliptic pole, and every sample's
+    // angular distance from that mean should be ≈ obliquity. If the matrix
+    // conjugation regresses (we burned a day on this in pass 7a), this
+    // test fires — wrong conjugation drifts the pole through the sphere
+    // rather than tracing a small circle.
+    const line = buildPrecessionTrail();
+    const pos = line.geometry.getAttribute('position');
+    let mx = 0, my = 0, mz = 0;
+    for (let i = 0; i < pos.count; i++) {
+      mx += pos.getX(i); my += pos.getY(i); mz += pos.getZ(i);
+    }
+    const n = pos.count;
+    const mean = new THREE.Vector3(mx / n, my / n, mz / n).normalize();
+    const r = R_CS * 1.001;
+    let maxAngle = 0, minAngle = Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).divideScalar(r);
+      const ang = Math.acos(THREE.MathUtils.clamp(v.dot(mean), -1, 1));
+      maxAngle = Math.max(maxAngle, ang);
+      minAngle = Math.min(minAngle, ang);
+    }
+    // Obliquity ≈ 23.44° = 0.4091 rad. Allow generous bounds — obliquity
+    // varies slowly over 26 ka, plus the loop isn't perfectly closed.
+    const OBL = 23.44 * Math.PI / 180;
+    expect(maxAngle).toBeLessThan(OBL + 0.05);
+    expect(minAngle).toBeGreaterThan(OBL - 0.05);
   });
 });

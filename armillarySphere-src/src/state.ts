@@ -16,6 +16,8 @@ export interface Layers {
   ecliptic: boolean;
   /** N/S markers at the celestial poles. */
   poles: boolean;
+  /** §8.2 — path of the of-date NCP across one full ~25,800-yr precession cycle. */
+  precessionTrail: boolean;
   // §4.6 — terrestrial references (Earth)
   /** Terrestrial equator + 15° tick marks. */
   terrestrialEquator: boolean;
@@ -91,6 +93,7 @@ export function defaultState(): AppState {
       celestialGrid: false,
       ecliptic: true,
       poles: false,
+      precessionTrail: false,
       terrestrialEquator: false,
       terrestrialGrid: false,
       primeMeridian: false,

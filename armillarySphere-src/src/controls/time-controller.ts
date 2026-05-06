@@ -2,10 +2,12 @@
 // bindings are wired separately in the UI layer; this module owns the time-rate
 // vocabulary so the drawer can stay assembly.
 
-export type Rate = 1 | 60 | 3600 | 86400 | 31_557_600;
+export type Rate = 1 | 60 | 3600 | 86400 | 31_557_600 | 3_155_760_000;
 
-/** Spec §4.3: real-time, ×60, ×3600, ×86400, ×31557600 (Julian year/sec). */
-export const RATES: readonly Rate[] = [1, 60, 3600, 86400, 31_557_600];
+/** Spec §4.3 + extension: real-time, ×60, ×3600, ×86400, ×31.5M (1 Julian
+ *  yr/s), ×3.156G (100 Julian yr/s — useful in sidereal-lock for visualising
+ *  precession on a human timescale, but works in every mode). */
+export const RATES: readonly Rate[] = [1, 60, 3600, 86400, 31_557_600, 3_155_760_000];
 
 /**
  * Advance `date` by `rate * dtSeconds` of simulated time. Pure; does not
@@ -26,6 +28,7 @@ export function formatRate(rate: number): string {
     case 3600: return '×3600 (1 hr/s)';
     case 86400: return '×86400 (1 day/s)';
     case 31_557_600: return '×31.5M (1 yr/s)';
+    case 3_155_760_000: return '×3.16G (100 yr/s)';
     default: return `×${rate}`;
   }
 }
