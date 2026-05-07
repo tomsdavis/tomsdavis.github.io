@@ -4,25 +4,23 @@
 
 Both textures live in `public/textures/`.
 
-### `earth-day.jpg` — Blue Marble: Land Surface, Shallow Water, and Shaded Topography
+### `earth-day.webp` — Blue Marble: Land Surface, Shallow Water, and Shaded Topography
 
 - Source: NASA Earth Observatory / Visible Earth, image record 57752
-  - <https://visibleearth.nasa.gov/images/57752/land-surface-shallow-water-and-shaded-topography>
-- Direct file (this build):
-  - <https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57752/land_shallow_topo_2048.jpg>
-- Original dimensions: 2048×1024 equirectangular, JPEG.
-- This build: re-encoded at JPEG quality 85, EXIF stripped. Same dimensions.
+- Direct file used (8192×4096 TIFF):
+  - <https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57752/land_shallow_topo_8192.tif>
+- Original dimensions: 8192×4096 equirectangular, TIFF.
+- This build: downsampled to 4096×2048 (Lanczos via ffmpeg), encoded WebP quality 85, EXIF stripped. ~685 KB.
 - License: Public domain (NASA imagery). Credit suggested: "NASA / Reto Stöckli, Robert Simmon, MODIS Land Group."
 
-### `earth-night.jpg` — Earth's City Lights (Reto Stöckli, 2000)
+### `earth-night.webp` — Earth at Night: Black Marble 2016 Colour Maps
 
-- Source: NASA Earth Observatory / Visible Earth, image record 55167
-  - <https://visibleearth.nasa.gov/images/55167/earths-city-lights>
-- Direct file (this build):
-  - <https://eoimages.gsfc.nasa.gov/images/imagerecords/55000/55167/earth_lights_lrg.jpg>
-- Original dimensions: 2400×1200 equirectangular, JPEG.
-- This build: resized to 2048×1024, JPEG quality 85, EXIF stripped.
-- License: Public domain (NASA imagery). Credit: "NASA / Goddard Space Flight Center / Reto Stöckli."
+- Source: NASA Earth Observatory / Visible Earth, image record 144898
+- Direct file used (13500×6750 JPEG, ~3 km/px):
+  - <https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg>
+- Original dimensions: 13500×6750 equirectangular, JPEG.
+- This build: downsampled to 4096×2048 (Lanczos via ffmpeg), encoded WebP quality 85, EXIF stripped. ~296 KB.
+- License: Public domain (NASA imagery). Credit: "NASA Earth Observatory / Suomi NPP VIIRS."
 
 ## Solar-system body sprites
 
@@ -90,10 +88,10 @@ day/night terminator, so it expects an unshaded base texture.
 ## Spec deviation note
 
 Spec §6.3 specifies 4096×2048 with target sizes ~2 MB (day) and ~1.5 MB (night).
-This build ships 2048×1024 at ~265 KB and ~296 KB respectively. The smaller
-textures are appropriate at the render distances we use (camera 1.05–5 scene
-units from a unit-radius Earth) and leave headroom in the precache budget.
-A future pass can upgrade to 4096×2048 if visible aliasing becomes an issue.
+This build meets the 4096×2048 resolution at ~685 KB (day) and ~296 KB (night)
+by encoding as WebP rather than JPEG, and for the night side by switching to
+the Black Marble 2016 composite (substantially sharper city lights than the
+original 2000 "Earth's City Lights" product, which caps at 2400×1200).
 
 ## Constellation lines and boundaries
 

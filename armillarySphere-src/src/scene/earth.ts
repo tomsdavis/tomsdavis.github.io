@@ -14,8 +14,8 @@ export interface EarthHandle {
 export async function createEarth(): Promise<EarthHandle> {
   const loader = new THREE.TextureLoader();
   const [day, night] = await Promise.all([
-    loadSrgbTexture(loader, 'textures/earth-day.jpg'),
-    loadSrgbTexture(loader, 'textures/earth-night.jpg'),
+    loadSrgbTexture(loader, 'textures/earth-day.webp'),
+    loadSrgbTexture(loader, 'textures/earth-night.webp'),
   ]);
 
   const uniforms = {
