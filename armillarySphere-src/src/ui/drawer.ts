@@ -4,7 +4,7 @@
 // the always-visible row keeps the globe unobstructed on phones.
 
 import type { AppState, RotationMode, Store, Unsubscribe } from '../state';
-import { RATES, formatRate } from '../controls/time-controller';
+import { RATES, applyScrub, formatRate } from '../controls/time-controller';
 import type { CameraControls } from '../controls/camera-controls';
 import { createSlider, type SliderHandle } from './sliders';
 import { createToggle, type ToggleHandle } from './toggles';
@@ -141,6 +141,28 @@ export function attachDrawer(opts: {
   rotationBtn.setAttribute('aria-label', 'Toggle rotation mode');
   const resetBtn = button('reset', '⟲', 'Reset view');
 
+  // ---- scrub bar (§4.3) ------------------------------------------------
+  // ±1 yr around the currently-set instant. Anchor is captured on first
+  // interaction (pointerdown / first input) and held until release so
+  // setting `state.instant` from each scrub tick doesn't recursively reset
+  // the slider — see the `scrubAnchor === null` guards below and in the
+  // `instant` subscription.
+  const scrubRow = document.createElement('div');
+  scrubRow.className = 'drawer-scrub';
+  const scrubCaption = document.createElement('span');
+  scrubCaption.className = 'scrub-caption';
+  scrubCaption.textContent = 'Scrub ±1 yr';
+  const scrubBar = document.createElement('input');
+  scrubBar.type = 'range';
+  scrubBar.id = 'scrub';
+  scrubBar.min = '-1';
+  scrubBar.max = '1';
+  scrubBar.step = '0.001';
+  scrubBar.value = '0';
+  scrubBar.title = 'Fine-scrub the date by up to ±1 year. Pauses playback.';
+  scrubBar.setAttribute('aria-label', 'Year scrub bar (±1 year around current date)');
+  scrubRow.append(scrubCaption, scrubBar);
+
   // ---- Layers popover --------------------------------------------------
   const layersPopover = createPopover({ label: 'Layers', title: 'Visibility toggles' });
   layersPopover.panel.classList.add('layers-panel');
@@ -231,13 +253,23 @@ export function attachDrawer(opts: {
     displayPopover.trigger,
     layersPopover.panel,
     displayPopover.panel,
+    scrubRow,
   );
   container.appendChild(root);
 
   // ---- subscriptions ---------------------------------------------------
   const unsubs: Unsubscribe[] = [];
 
-  unsubs.push(store.subscribe('instant', (d) => { dt.value = toLocalDatetimeInputValue(d); }));
+  // Anchor for the scrub bar; null whenever the user is not actively
+  // interacting with the slider. Captured below via pointerdown / first
+  // input so the slider's own writes to `state.instant` don't fight the
+  // subscription.
+  let scrubAnchor: Date | null = null;
+
+  unsubs.push(store.subscribe('instant', (d) => {
+    dt.value = toLocalDatetimeInputValue(d);
+    if (scrubAnchor === null) scrubBar.value = '0';
+  }));
   unsubs.push(store.subscribe('rate', (r) => { rateSel.value = String(r); }));
   unsubs.push(store.subscribe('playing', (on) => { playBtn.textContent = on ? '⏸' : '▶'; }));
   const applyRotationStyling = (m: RotationMode) => {
@@ -287,6 +319,26 @@ export function attachDrawer(opts: {
     if (v === 'hours' || v === 'degrees') store.set({ raUnits: v });
   };
 
+  // Lock the scrub anchor on first interaction, release on commit / blur /
+  // cancel. `change` covers mouse-up and Enter; `pointerdown` covers touch
+  // (where `change` may not fire until blur).
+  const startScrub = () => {
+    if (scrubAnchor !== null) return;
+    scrubAnchor = store.get().instant;
+    if (store.get().playing) store.set({ playing: false });
+  };
+  const endScrub = () => {
+    if (scrubAnchor === null) return;
+    scrubAnchor = null;
+    scrubBar.value = '0';
+  };
+  const onScrubInput = () => {
+    startScrub();
+    const v = Number(scrubBar.value);
+    if (!Number.isFinite(v) || scrubAnchor === null) return;
+    store.set({ instant: applyScrub(scrubAnchor, v) });
+  };
+
   dt.addEventListener('change', onDt);
   nowBtn.addEventListener('click', onNow);
   playBtn.addEventListener('click', onPlay);
@@ -295,6 +347,11 @@ export function attachDrawer(opts: {
   resetBtn.addEventListener('click', onReset);
   grainPicker.select.addEventListener('change', onGrain);
   raPicker.select.addEventListener('change', onRaUnits);
+  scrubBar.addEventListener('pointerdown', startScrub);
+  scrubBar.addEventListener('input', onScrubInput);
+  scrubBar.addEventListener('change', endScrub);
+  scrubBar.addEventListener('pointercancel', endScrub);
+  scrubBar.addEventListener('blur', endScrub);
 
   return {
     detach() {

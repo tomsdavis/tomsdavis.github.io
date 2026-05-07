@@ -17,6 +17,21 @@ export function advance(date: Date, rate: number, dtSeconds: number): Date {
   return new Date(date.getTime() + rate * dtSeconds * 1000);
 }
 
+/** Spec §4.3: half-range of the scrub bar in milliseconds — one Julian year,
+ *  matching the ×31_557_600 rate rung. Slider value ∈ [-1, +1] maps linearly to
+ *  ±SCRUB_RANGE_MS around the captured anchor instant. */
+export const SCRUB_RANGE_MS = 31_557_600_000;
+
+/**
+ * Map a scrub-bar value in [-1, +1] to an instant offset around `anchor`.
+ * Pure; does not mutate `anchor`. Caller is expected to clamp `value` to
+ * [-1, +1] (the slider does this naturally), but values outside that range
+ * still work — useful for tests.
+ */
+export function applyScrub(anchor: Date, value: number): Date {
+  return new Date(anchor.getTime() + value * SCRUB_RANGE_MS);
+}
+
 /**
  * Human label for a rate-ladder rung. The select uses these as option text;
  * any off-ladder rate falls back to a generic `×N` form.

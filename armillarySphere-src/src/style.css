@@ -115,6 +115,31 @@ html, body {
   display: inline;
 }
 
+/* ---- year scrub bar (§4.3) ---- */
+/* flex-basis: 100% forces this row to wrap onto its own line below the
+   primary controls regardless of viewport width. */
+#drawer .drawer-scrub {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.1rem 0.25rem 0;
+}
+
+#drawer .drawer-scrub .scrub-caption {
+  font-size: 0.75rem;
+  color: #8a8ab8;
+  user-select: none;
+  white-space: nowrap;
+}
+
+#drawer .drawer-scrub input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  accent-color: #6a5a8e;
+}
+
 /* ---- popover triggers (Layers ▾, Display ▾) ---- */
 #drawer .popover-trigger {
   display: inline-flex;

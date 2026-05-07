@@ -302,20 +302,28 @@ Working end to end:
   - **100 yr/s rate** added to the rate ladder (×3.16G label).
     Especially useful in sidereal-lock for visualising precession on a
     human timescale; harmless in the other modes.
+- **±1 yr scrub bar** (§4.3) — second row in the drawer, native
+  `<input type="range">` from −1 to +1. Pure helper `applyScrub(anchor,
+  value)` in `controls/time-controller.ts` maps the slider value linearly
+  to ±`SCRUB_RANGE_MS` (one Julian year, matching the ×31.5M rate rung).
+  The drawer captures `scrubAnchor = state.instant` on first interaction
+  (pointerdown or first input event) and holds it until release; each
+  input tick writes `applyScrub(anchor, value)` back to `state.instant`,
+  and the `instant` subscription only resets the slider to 0 while
+  `scrubAnchor === null` so per-tick writes don't fight the UI. On
+  release (`change` / `pointercancel` / `blur`) the anchor clears and
+  the handle snaps back to centre — meaning the bar always re-centres
+  on the new "current instant". Scrub start auto-pauses an active play
+  per spec.
 
 ## What Still Needs Filling In
 
-- `controls/time-controller.ts` exposes `RATES`, `advance()`, and
-  `formatRate()`; the ±1 year scrub bar from spec §4.3 still isn't
-  drawn. Date is set by direct datetime input today.
 - Camera pinch zoom and drag inertia.
 - Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
-- Ecliptic 30° divisions (zodiac month markers) — spec §4.6 mentions
-  these as optional; not yet drawn.
 
 ## Test Coverage
 
-`deno task test` runs Vitest (18 files, 196 tests as of pass 7c):
+`deno task test` runs Vitest (18 files, 202 tests):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. all three rotation-mode
@@ -328,7 +336,9 @@ Working end to end:
   `bodyToSunSceneDir` regression catching scene-projected-direction
   bugs for Venus; `bodyPhaseCos` ≈ ±1 at full/new moon.
 - `time-controller` — `advance()` at the documented rates;
-  `formatRate()` for every ladder rung + the off-ladder fallback.
+  `formatRate()` for every ladder rung + the off-ladder fallback;
+  `applyScrub()` linearity / immutability / endpoint behaviour and the
+  `SCRUB_RANGE_MS` = 1 Julian year invariant.
 - `rotation` — `(earthY − celestialY) ≡ gast` invariant in re/fe modes;
   sidereal-lock freezes both roots regardless of GAST and pins the
   deliberate invariant break.

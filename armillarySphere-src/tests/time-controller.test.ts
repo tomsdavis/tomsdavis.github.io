@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { advance, formatRate, RATES } from '../src/controls/time-controller';
+import {
+  advance,
+  applyScrub,
+  formatRate,
+  RATES,
+  SCRUB_RANGE_MS,
+} from '../src/controls/time-controller';
 
 describe('time-controller', () => {
   it('exposes the spec-defined rate ladder', () => {
@@ -49,5 +55,37 @@ describe('time-controller', () => {
     const t0 = new Date('2026-05-02T00:00:00Z');
     expect(advance(t0, -60, 1).getTime() - t0.getTime()).toBe(-60_000);
     expect(advance(t0, 60, -1).getTime() - t0.getTime()).toBe(-60_000);
+  });
+
+  it('SCRUB_RANGE_MS is one Julian year, matching the ×31.5M rate rung', () => {
+    expect(SCRUB_RANGE_MS).toBe(31_557_600_000);
+  });
+
+  it('applyScrub at value=0 returns the anchor instant', () => {
+    const t0 = new Date('2026-05-02T00:00:00Z');
+    expect(applyScrub(t0, 0).getTime()).toBe(t0.getTime());
+  });
+
+  it('applyScrub at value=+1 advances by one Julian year', () => {
+    const t0 = new Date('2026-05-02T00:00:00Z');
+    expect(applyScrub(t0, 1).getTime() - t0.getTime()).toBe(SCRUB_RANGE_MS);
+  });
+
+  it('applyScrub at value=-1 rewinds by one Julian year', () => {
+    const t0 = new Date('2026-05-02T00:00:00Z');
+    expect(applyScrub(t0, -1).getTime() - t0.getTime()).toBe(-SCRUB_RANGE_MS);
+  });
+
+  it('applyScrub is linear across the slider range', () => {
+    const t0 = new Date('2026-05-02T00:00:00Z');
+    expect(applyScrub(t0, 0.5).getTime() - t0.getTime()).toBe(SCRUB_RANGE_MS / 2);
+    expect(applyScrub(t0, -0.25).getTime() - t0.getTime()).toBe(-SCRUB_RANGE_MS / 4);
+  });
+
+  it('applyScrub does not mutate the anchor Date', () => {
+    const t0 = new Date('2026-05-02T00:00:00Z');
+    const before = t0.getTime();
+    applyScrub(t0, 0.7);
+    expect(t0.getTime()).toBe(before);
   });
 });
