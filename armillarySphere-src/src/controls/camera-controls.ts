@@ -43,6 +43,18 @@ export function applyWheelZoom(c: CameraSlice, deltaY: number, sensitivity = WHE
   });
 }
 
+// Pinch zoom: ratio = currentPointerSeparation / previousPointerSeparation.
+// Fingers spreading (ratio > 1) zooms IN, so camera distance shrinks by the
+// inverse ratio. Same multiplicative model as the wheel — composing pinches
+// is equivalent to multiplying ratios.
+export function applyPinchZoom(c: CameraSlice, ratio: number): CameraSlice {
+  return clampCamera({
+    azimuth: c.azimuth,
+    elevation: c.elevation,
+    distance: c.distance / ratio,
+  });
+}
+
 function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
@@ -59,28 +71,70 @@ export function attachCameraControls(opts: {
   store: Store<AppState>;
 }): CameraControls {
   const { element, store } = opts;
-  let dragging: { id: number; lastX: number; lastY: number } | null = null;
+  // Track up to two active pointers so a second touch can switch from drag
+  // (one pointer) into pinch (two pointers) and back. Map keyed by pointerId.
+  const pointers = new Map<number, { x: number; y: number }>();
+  let mode: 'idle' | 'drag' | 'pinch' = 'idle';
+  let dragLast: { x: number; y: number } | null = null;
+  let pinchLastDist: number | null = null;
+
+  const pinchDistance = (): number => {
+    const [a, b] = pointers.values();
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
 
   const onPointerDown = (e: PointerEvent) => {
-    if (dragging !== null) return;
     if (e.button !== undefined && e.button !== 0) return;
+    if (pointers.size >= 2) return;
     element.setPointerCapture(e.pointerId);
-    dragging = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY };
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      mode = 'drag';
+      dragLast = { x: e.clientX, y: e.clientY };
+    } else {
+      mode = 'pinch';
+      dragLast = null;
+      pinchLastDist = pinchDistance();
+    }
   };
 
   const onPointerMove = (e: PointerEvent) => {
-    if (dragging === null || dragging.id !== e.pointerId) return;
-    const dx = e.clientX - dragging.lastX;
-    const dy = e.clientY - dragging.lastY;
-    dragging.lastX = e.clientX;
-    dragging.lastY = e.clientY;
-    store.set({ camera: applyDrag(store.get().camera, dx, dy) });
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (mode === 'drag' && dragLast) {
+      const dx = e.clientX - dragLast.x;
+      const dy = e.clientY - dragLast.y;
+      dragLast = { x: e.clientX, y: e.clientY };
+      store.set({ camera: applyDrag(store.get().camera, dx, dy) });
+    } else if (mode === 'pinch' && pinchLastDist !== null && pinchLastDist > 0) {
+      const currDist = pinchDistance();
+      if (currDist > 0) {
+        store.set({ camera: applyPinchZoom(store.get().camera, currDist / pinchLastDist) });
+      }
+      pinchLastDist = currDist;
+    }
   };
 
   const onPointerEnd = (e: PointerEvent) => {
-    if (dragging === null || dragging.id !== e.pointerId) return;
+    if (!pointers.has(e.pointerId)) return;
     try { element.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-    dragging = null;
+    pointers.delete(e.pointerId);
+
+    if (pointers.size === 0) {
+      mode = 'idle';
+      dragLast = null;
+      pinchLastDist = null;
+    } else {
+      // Dropped from pinch back to drag. Re-anchor dragLast to the surviving
+      // pointer's current position so the next pointermove doesn't compute a
+      // huge dx/dy from the lifted pointer's last coords.
+      const remaining = pointers.values().next().value;
+      mode = 'drag';
+      pinchLastDist = null;
+      dragLast = remaining ? { x: remaining.x, y: remaining.y } : null;
+    }
   };
 
   const onWheel = (e: WheelEvent) => {

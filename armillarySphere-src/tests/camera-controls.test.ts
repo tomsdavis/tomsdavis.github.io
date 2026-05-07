@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyDrag,
+  applyPinchZoom,
   applyWheelZoom,
   clampCamera,
   CAMERA_MIN_DISTANCE,
@@ -69,5 +70,42 @@ describe('applyWheelZoom', () => {
     const b = applyWheelZoom({ azimuth: 0, elevation: 0, distance: 1.5 }, 100, 0.001);
     // Same scroll delta from different starting points → same multiplicative ratio.
     expect(a.distance / 2.5).toBeCloseTo(b.distance / 1.5);
+  });
+});
+
+describe('applyPinchZoom', () => {
+  // ratio = currDist / prevDist between the two pointers. Fingers spreading
+  // (ratio > 1) ⇒ zoom IN ⇒ camera distance DECREASES.
+  it('ratio > 1 (fingers spreading) decreases distance', () => {
+    const next = applyPinchZoom({ azimuth: 0, elevation: 0, distance: 3 }, 1.5);
+    expect(next.distance).toBeCloseTo(2);
+  });
+
+  it('ratio < 1 (fingers pinching together) increases distance', () => {
+    const next = applyPinchZoom({ azimuth: 0, elevation: 0, distance: 2 }, 0.5);
+    expect(next.distance).toBeCloseTo(4);
+  });
+
+  it('ratio = 1 leaves distance unchanged', () => {
+    const next = applyPinchZoom({ azimuth: 0.7, elevation: 0.3, distance: 2.5 }, 1);
+    expect(next).toEqual({ azimuth: 0.7, elevation: 0.3, distance: 2.5 });
+  });
+
+  it('clamps to the valid distance range', () => {
+    expect(applyPinchZoom({ azimuth: 0, elevation: 0, distance: 1.05 }, 100).distance).toBe(CAMERA_MIN_DISTANCE);
+    expect(applyPinchZoom({ azimuth: 0, elevation: 0, distance: 3 }, 0.001).distance).toBe(CAMERA_MAX_DISTANCE);
+  });
+
+  it('composes multiplicatively (two pinches = product of ratios)', () => {
+    const a = applyPinchZoom({ azimuth: 0, elevation: 0, distance: 3 }, 1.2);
+    const b = applyPinchZoom(a, 1.1);
+    const c = applyPinchZoom({ azimuth: 0, elevation: 0, distance: 3 }, 1.2 * 1.1);
+    expect(b.distance).toBeCloseTo(c.distance);
+  });
+
+  it('does not touch azimuth or elevation', () => {
+    const next = applyPinchZoom({ azimuth: 1.0, elevation: 0.5, distance: 2 }, 1.3);
+    expect(next.azimuth).toBe(1.0);
+    expect(next.elevation).toBe(0.5);
   });
 });
