@@ -4,6 +4,8 @@ import {
   applyPinchZoom,
   applyWheelZoom,
   clampCamera,
+  decayVelocity,
+  sampleVelocity,
   CAMERA_MIN_DISTANCE,
   CAMERA_MAX_DISTANCE,
   ELEVATION_LIMIT,
@@ -107,5 +109,77 @@ describe('applyPinchZoom', () => {
     const next = applyPinchZoom({ azimuth: 1.0, elevation: 0.5, distance: 2 }, 1.3);
     expect(next.azimuth).toBe(1.0);
     expect(next.elevation).toBe(0.5);
+  });
+});
+
+describe('sampleVelocity', () => {
+  // Velocity in pixels-per-millisecond, computed from displacement between
+  // the most-recent pointer sample and the oldest sample still inside the
+  // time window. The unit must match what the inertia tick consumes
+  // (px = vx · dt_ms).
+  it('returns zero for an empty buffer', () => {
+    expect(sampleVelocity([], 100, 80)).toEqual({ vx: 0, vy: 0 });
+  });
+
+  it('returns zero for a single-sample buffer (no displacement available)', () => {
+    expect(sampleVelocity([{ t: 0, x: 0, y: 0 }], 100, 80)).toEqual({ vx: 0, vy: 0 });
+  });
+
+  it('computes px/ms from displacement / elapsed across the window', () => {
+    const samples = [
+      { t: 0, x: 0, y: 0 },
+      { t: 50, x: 50, y: 25 },
+    ];
+    expect(sampleVelocity(samples, 50, 80)).toEqual({ vx: 1, vy: 0.5 });
+  });
+
+  it('drops samples older than the window so a flick is not diluted by stale stationary samples', () => {
+    const samples = [
+      // Pointer was idle for a long time, then flicked in the last 50ms.
+      { t: 0, x: 100, y: 100 },
+      { t: 500, x: 100, y: 100 },
+      { t: 550, x: 200, y: 100 }, // 100px in 50ms = 2 px/ms
+    ];
+    const v = sampleVelocity(samples, 550, 80);
+    expect(v.vx).toBeCloseTo(2);
+    expect(v.vy).toBeCloseTo(0);
+  });
+
+  it('returns zero when all in-window samples share a timestamp (no div-by-zero)', () => {
+    const samples = [
+      { t: 100, x: 0, y: 0 },
+      { t: 100, x: 50, y: 50 },
+    ];
+    expect(sampleVelocity(samples, 100, 80)).toEqual({ vx: 0, vy: 0 });
+  });
+});
+
+describe('decayVelocity', () => {
+  // Exponential decay: v(t+dt) = v(t) · exp(-dt / tau).
+  // tau is the e-folding time — after tau ms, velocity is at 1/e ≈ 37%.
+  it('leaves velocity unchanged when dt = 0', () => {
+    const v = { vx: 3, vy: -2 };
+    expect(decayVelocity(v, 0, 300)).toEqual(v);
+  });
+
+  it('decays to 1/e after one tau', () => {
+    const next = decayVelocity({ vx: 1, vy: 0 }, 300, 300);
+    expect(next.vx).toBeCloseTo(1 / Math.E);
+    expect(next.vy).toBe(0);
+  });
+
+  it('decays both axes by the same factor', () => {
+    const next = decayVelocity({ vx: 4, vy: -3 }, 150, 300);
+    const factor = Math.exp(-150 / 300);
+    expect(next.vx).toBeCloseTo(4 * factor);
+    expect(next.vy).toBeCloseTo(-3 * factor);
+  });
+
+  it('composes (two halves of dt = one full dt)', () => {
+    const v = { vx: 5, vy: 1 };
+    const oneStep = decayVelocity(v, 200, 300);
+    const twoStep = decayVelocity(decayVelocity(v, 100, 300), 100, 300);
+    expect(twoStep.vx).toBeCloseTo(oneStep.vx);
+    expect(twoStep.vy).toBeCloseTo(oneStep.vy);
   });
 });
