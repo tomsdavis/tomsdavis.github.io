@@ -36,12 +36,36 @@ describe('rotationFor', () => {
     expect(re.celestialY).not.toBe(fe.celestialY);
   });
 
-  it('sidereal-lock: freezes both roots regardless of GAST', () => {
+  it('sidereal-lock with no lock provided: falls back to (0, 0) regardless of GAST', () => {
+    // The URL-reload-into-sl path: no lock is reachable from a fragment,
+    // so we degrade to a defined-but-arbitrary frozen orientation.
     for (const gast of [0, 0.5, Math.PI, 2 * Math.PI, 100]) {
       const r = rotationFor('sidereal-lock', gast);
       expect(r.earthY).toBe(0);
       expect(r.celestialY).toBe(0);
     }
+  });
+
+  it('sidereal-lock with lock provided: returns the locked angles regardless of GAST', () => {
+    // The interactive-entry path: transitionRotationMode captures the prev
+    // mode's (earthY, celestialY) at lock time; rotationFor returns those.
+    const lock = { earthY: 1.234, celestialY: -2.345 };
+    for (const gast of [0, 0.5, Math.PI, 2 * Math.PI, 100]) {
+      const r = rotationFor('sidereal-lock', gast, lock);
+      expect(r.earthY).toBe(1.234);
+      expect(r.celestialY).toBe(-2.345);
+    }
+  });
+
+  it('sidereal-lock: ignores lockedAngles for non-sl modes', () => {
+    // Defensive: passing a stale lock to re/fe should not contaminate them.
+    const lock = { earthY: 99, celestialY: -99 };
+    const re = rotationFor('rotating-earth', 1.0, lock);
+    expect(re.earthY).toBeCloseTo(1.0);
+    expect(re.celestialY).toBe(0);
+    const fe = rotationFor('fixed-earth', 1.0, lock);
+    expect(fe.earthY).toBe(0);
+    expect(fe.celestialY).toBeCloseTo(-1.0);
   });
 
   it('sidereal-lock: breaks the (earthY − celestialY) ≡ gast invariant by design', () => {

@@ -271,13 +271,14 @@ Working end to end:
     Astronomical-year-0 = 1 BCE; the formatter handles negative years.
 - **Pass 7c — sidereal-lock semantics, tri-state toggle, NCP precession
   trail (§8.2 finished):**
-  - `rotationFor('sidereal-lock', g)` returns `{ earthY: 0, celestialY: 0 }`
-    regardless of GAST. Year-scale scrubbing therefore isolates precession
-    (the J2000→of-date matrix on `celestialJ2000Root`) and the Sun's RA/Dec
-    drift across the ecliptic, without GAST wrap noise overwhelming the
-    signal. Deliberately breaks the `(earthY − celestialY) ≡ gast`
-    invariant — pinned by a test so a future refactor can't accidentally
-    restore it.
+  - `rotationFor('sidereal-lock', g, lockedAngles?)` returns the supplied
+    locked angles regardless of GAST (or `(0, 0)` when no lock provided —
+    the URL-reload-into-sl path). Year-scale scrubbing therefore isolates
+    precession (the J2000→of-date matrix on `celestialJ2000Root`) and the
+    Sun's RA/Dec drift across the ecliptic, without GAST wrap noise
+    overwhelming the signal. Deliberately breaks the
+    `(earthY − celestialY) ≡ gast` invariant — pinned by a test so a
+    future refactor can't accidentally restore it.
   - **Tri-state rotation toggle** in the drawer cycles
     re → fe → sl → re via `nextRotationMode` in `src/ui/rotation-cycle.ts`
     (one-line helper, fully test-covered). The button is now an inline
@@ -315,6 +316,26 @@ Working end to end:
   the handle snaps back to centre — meaning the bar always re-centres
   on the new "current instant". Scrub start auto-pauses an active play
   per spec.
+- **No-jump rotation-mode switching.** The mode toggle preserves the
+  instantaneous viewpoint across switches; only the *impact of time
+  progressing* differs per mode. Two pieces in `src/ui/rotation-cycle.ts`'s
+  `transitionRotationMode(state, gastNow)`:
+  - **sl lock-at-entry.** Entering 'sidereal-lock' captures the previous
+    mode's `(earthY, celestialY)` at current GAST and stores them as the
+    new `state.siderealLock`. `rotationFor` returns those exact angles in
+    sl regardless of GAST, so the entry is a visual no-op. Leaving sl
+    clears the lock back to `null`.
+  - **Sky-following camera azimuth.** When `celestialY` changes between
+    modes, `camera.azimuth` is bumped by the same delta so the celestial
+    sphere stays put on screen. For re ↔ fe transitions Earth and sky
+    rotate by the same amount, so this also keeps Earth fixed (full
+    preservation). Only remaining jump: `sl → re/fe` after time advanced
+    during the sl session — Earth then jumps by the diurnal angle that
+    didn't apply while sl froze it. Unavoidable: the canonical mode
+    formula must reassert eventually.
+  - `state.siderealLock: { earthY, celestialY } | null` is non-persisted
+    (transient per session). On URL-reload into `rot=sl`, it stays null
+    and `rotationFor` falls back to `(0, 0)` — degraded but defined.
 
 ## What Still Needs Filling In
 
@@ -323,7 +344,7 @@ Working end to end:
 
 ## Test Coverage
 
-`deno task test` runs Vitest (18 files, 202 tests):
+`deno task test` runs Vitest (18 files, 208 tests):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. all three rotation-mode
@@ -340,10 +361,17 @@ Working end to end:
   `applyScrub()` linearity / immutability / endpoint behaviour and the
   `SCRUB_RANGE_MS` = 1 Julian year invariant.
 - `rotation` — `(earthY − celestialY) ≡ gast` invariant in re/fe modes;
-  sidereal-lock freezes both roots regardless of GAST and pins the
-  deliberate invariant break.
-- `rotation-cycle` — tri-state drawer cycle (re → fe → sl → re):
-  one test per single-step transition + closure-after-three-clicks.
+  sidereal-lock freezes both roots at the supplied locked angles (or
+  `(0, 0)` when no lock provided), regardless of GAST; the deliberate
+  invariant break is also pinned. Defensive: re/fe ignore any stray
+  lockedAngles passed to them.
+- `rotation-cycle` — tri-state drawer cycle (re → fe → sl → re): one
+  test per single-step transition + closure-after-three-clicks. Plus
+  `transitionRotationMode` invariants: re ↔ fe preserves both Earth
+  and sky on screen; fe → sl captures the lock and is a visual no-op
+  (camera azimuth unchanged); re → sl → re round-trips the original
+  view exactly when t doesn't advance; sl → re after a GAST advance
+  preserves the sky on screen and Earth jumps by exactly that advance.
 - `camera-controls` — pure clamp / drag / wheel helpers.
 - `persistence` — debounce coalescing, non-persisted-slice gating.
 - `celestial-sphere` — `isOccludedByEarth` ray/sphere geometry: far

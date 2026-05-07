@@ -53,6 +53,12 @@ export interface AppState {
   // §4.1 — rotating Earth (default) vs fixed Earth with sky rotating westward
   rotationMode: RotationMode;
 
+  // §4.1 — when rotationMode is 'sidereal-lock', this carries the (earthY,
+  // celestialY) captured at lock entry from the previous mode's angles. Used
+  // by rotationFor + transitionRotationMode so that entering sl never causes
+  // a visual jump. Null in re/fe modes. Not persisted (transient).
+  siderealLock: { earthY: number; celestialY: number } | null;
+
   // §4.6 — graticule spacing in degrees (15 / 30 / 45 / 90). Applies to both
   // the celestial and terrestrial grids when their layer is on.
   gridGrain: number;
@@ -84,6 +90,7 @@ export function defaultState(): AppState {
     magnitudeLimit: 5.0,
     celestialOpacity: 0.15,
     rotationMode: 'rotating-earth',
+    siderealLock: null,
     gridGrain: 30,
     raUnits: 'hours',
     playing: false,

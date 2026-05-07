@@ -44,7 +44,7 @@ describe('attachPersistence', () => {
     expect(setItem).toHaveBeenCalledTimes(1);
   });
 
-  it('does not flush when only non-persisted slices (layers, opacity) change', () => {
+  it('does not flush when only non-persisted slices (layers, opacity, siderealLock) change', () => {
     const store = createStore(defaultState());
     const storage = memoryStorage();
     const setItem = vi.spyOn(storage, 'setItem');
@@ -52,6 +52,7 @@ describe('attachPersistence', () => {
 
     store.set({ celestialOpacity: 0.5 });
     store.set({ layers: { ...store.get().layers, celestialEquator: false } });
+    store.set({ siderealLock: { earthY: 1, celestialY: -1 } });
     vi.advanceTimersByTime(500);
 
     expect(setItem).not.toHaveBeenCalled();

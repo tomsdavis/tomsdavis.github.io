@@ -14,18 +14,24 @@ export interface RotationApplication {
   celestialY: number;
 }
 
-export function rotationFor(mode: RotationMode, gastRad: number): RotationApplication {
+export function rotationFor(
+  mode: RotationMode,
+  gastRad: number,
+  lockedAngles?: RotationApplication | null,
+): RotationApplication {
   switch (mode) {
     case 'rotating-earth':
       return { earthY: gastRad, celestialY: 0 };
     case 'fixed-earth':
       return { earthY: 0, celestialY: -gastRad };
     case 'sidereal-lock':
-      // Diurnal phase is frozen — earthY = celestialY = 0 regardless of GAST.
-      // Year-scale scrubbing then isolates precession (the J2000→of-date
-      // matrix on celestialJ2000Root) and the Sun's RA/Dec drift across the
-      // ecliptic, without GAST wrap noise overwhelming the signal. Breaks
-      // the (earthY − celestialY) ≡ gast invariant by design.
-      return { earthY: 0, celestialY: 0 };
+      // Diurnal phase is frozen — both roots are constant in time. The
+      // specific values come from `lockedAngles` (captured at sl entry from
+      // the previous mode's angles; see transitionRotationMode), so a mode
+      // switch into sl never causes a visual jump. Falls back to (0, 0)
+      // when no lock is provided — the URL-reload-into-sl path.
+      return lockedAngles
+        ? { earthY: lockedAngles.earthY, celestialY: lockedAngles.celestialY }
+        : { earthY: 0, celestialY: 0 };
   }
 }

@@ -5,6 +5,7 @@ describe('defaultState', () => {
   it('returns sensible defaults including rotation mode', () => {
     const s = defaultState();
     expect(s.rotationMode).toBe('rotating-earth');
+    expect(s.siderealLock).toBeNull();
     expect(s.magnitudeLimit).toBeGreaterThan(0);
     expect(s.magnitudeLimit).toBeLessThanOrEqual(6.5);
     expect(s.camera.distance).toBeGreaterThan(2);

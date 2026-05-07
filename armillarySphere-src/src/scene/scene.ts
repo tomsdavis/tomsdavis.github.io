@@ -120,7 +120,7 @@ export async function createScene(canvas: HTMLCanvasElement, initial: {
     apply(state) {
       const t = state.instant;
       const g = gast(t);
-      const { earthY, celestialY } = rotationFor(state.rotationMode, g);
+      const { earthY, celestialY } = rotationFor(state.rotationMode, g, state.siderealLock);
       earthRoot.rotation.y = earthY;
       celestialRoot.rotation.y = celestialY;
 

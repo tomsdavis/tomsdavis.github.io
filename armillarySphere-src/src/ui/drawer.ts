@@ -9,7 +9,8 @@ import type { CameraControls } from '../controls/camera-controls';
 import { createSlider, type SliderHandle } from './sliders';
 import { createToggle, type ToggleHandle } from './toggles';
 import { createPopover, type PopoverHandle } from './popover';
-import { nextRotationMode } from './rotation-cycle';
+import { transitionRotationMode } from './rotation-cycle';
+import { gast } from '../astronomy/ephemeris';
 
 const ROTATION_TITLES: Record<RotationMode, string> = {
   'rotating-earth': 'Rotation: rotating Earth (e→) — click for fixed Earth (C→)',
@@ -307,7 +308,8 @@ export function attachDrawer(opts: {
     if (Number.isFinite(r)) store.set({ rate: r });
   };
   const onRotation = () => {
-    store.set({ rotationMode: nextRotationMode(store.get().rotationMode) });
+    const s = store.get();
+    store.set(transitionRotationMode(s, gast(s.instant)));
   };
   const onReset = () => cameraControls.resetView();
   const onGrain = () => {
