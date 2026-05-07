@@ -198,8 +198,13 @@ Working end to end:
   terminator tracks the actual instant in either visualisation.
 - Rotation-mode toggle (rotating Earth vs fixed Earth) backed by a pure
   `rotationFor(mode, gast)` helper with TDD'd invariants.
-- Pointer Events orbit camera (drag rotate, wheel zoom; pinch and inertia
-  deferred). Reset-view button.
+- Pointer Events orbit camera: drag rotate, wheel zoom, two-finger pinch
+  zoom (multiplicative — `applyPinchZoom(c, ratio)` mirrors the wheel
+  model), and drag inertia on release (RAF loop driven by
+  `sampleVelocity` over an 80 ms window + `decayVelocity` with τ =
+  300 ms, stopping below ~5 px/s). A new pointerdown cancels in-flight
+  inertia (tap-to-stop); pinch releases don't seed inertia. Reset-view
+  button.
 - **Reference lines and graticule** (§4.6, pass 5b) — `scene/lines.ts`.
   Independent layers on each sphere: celestial equator (with hourly tick
   marks + RA labels), celestial graticule, ecliptic, NCP/SCP markers
@@ -339,12 +344,11 @@ Working end to end:
 
 ## What Still Needs Filling In
 
-- Camera pinch zoom and drag inertia.
 - Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
 
 ## Test Coverage
 
-`deno task test` runs Vitest (18 files, 208 tests):
+`deno task test` runs Vitest (18 files, 223 tests):
 
 - `state` — store subscriptions, defaults, slice notification semantics.
 - `url-state` — fragment encode/decode incl. all three rotation-mode
@@ -372,7 +376,12 @@ Working end to end:
   (camera azimuth unchanged); re → sl → re round-trips the original
   view exactly when t doesn't advance; sl → re after a GAST advance
   preserves the sky on screen and Earth jumps by exactly that advance.
-- `camera-controls` — pure clamp / drag / wheel helpers.
+- `camera-controls` — pure clamp / drag / wheel helpers, plus
+  `applyPinchZoom` (zoom direction + clamping + multiplicative
+  composition + leaves orientation alone), `sampleVelocity`
+  (empty/single-sample zero, displacement-over-window, drops stale
+  samples, no div-by-zero), `decayVelocity` (identity at dt=0, 1/e
+  after one tau, equal-axis decay, composes).
 - `persistence` — debounce coalescing, non-persisted-slice gating.
 - `celestial-sphere` — `isOccludedByEarth` ray/sphere geometry: far
   side, near side, off-to-side, beyond-Earth, same-side, and
