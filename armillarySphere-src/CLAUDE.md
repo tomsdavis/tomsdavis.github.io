@@ -74,7 +74,7 @@ public/
   bsc5.bin                  # (pass 3)
   bsc5-names.json           # (pass 3)
   constellation-{lines,boundaries}.json  # (pass 5)
-  textures/                 # earth-day.jpg, earth-night.jpg (committed)
+  textures/                 # earth-day.webp, earth-night.webp (committed, 4096×2048)
   textures/planets/         # sun/moon/mercury/venus/mars/jupiter/saturn.png (pass 4 placeholders)
 tests/                      # Vitest — pure logic only, no DOM/network
 requirements/               # Gitignored; canonical spec lives here locally
@@ -127,8 +127,11 @@ data/source/                # Spec §6.1: BSC5 etc. should be committed here.
 
 Working end to end:
 
-- Earth (unit-radius sphere) with NASA Blue/Black Marble textures and a
-  custom day/night terminator shader (~6° soft transition).
+- Earth (unit-radius sphere) with NASA Blue/Black Marble textures at
+  4096×2048 (WebP, q85): day = Blue Marble record 57752 downsampled from
+  8K TIFF; night = Black Marble 2016 colour (record 144898) downsampled
+  from 13.5K JPEG — sharper city lights than the original 2000 product.
+  Custom day/night terminator shader (~6° soft transition).
 - Celestial sphere at **R_CS = 1.1** — tightened from the spec's working
   default of 2 in pass 3 so a star sits visually adjacent to its
   sub-stellar point on Earth from any external angle. Default camera
@@ -344,7 +347,7 @@ Working end to end:
 
 ## What Still Needs Filling In
 
-- Earth textures are 2048×1024 vs the spec's 4096×2048 — see CREDITS.md.
+Nothing tracked — all v1 spec items are shipped.
 
 ## Test Coverage
 
