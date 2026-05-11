@@ -1,5 +1,7 @@
 // astronomy.js - Pure astronomical calculation functions (ES module)
 
+import * as Astronomy from './astronomy-engine.js';
+
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
 const J2000 = 2451545.0;
@@ -30,16 +32,23 @@ const STARS = [
   { name: 'Fomalhaut',  ra: 344.4127, dec: -29.6222 },
 ];
 
-// Planet definitions for Horizons API
-const PLANETS = [
-  { name: 'Sun',     command: '10'  },
-  { name: 'Moon',    command: '301' },
-  { name: 'Mercury', command: '199' },
-  { name: 'Venus',   command: '299' },
-  { name: 'Mars',    command: '499' },
-  { name: 'Jupiter', command: '599' },
-  { name: 'Saturn',  command: '699' },
-];
+const PLANET_NAMES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+
+const _GEOCENTRE = new Astronomy.Observer(0, 0, 0);
+const _BODY_MAP = {
+  Sun:     Astronomy.Body.Sun,
+  Moon:    Astronomy.Body.Moon,
+  Mercury: Astronomy.Body.Mercury,
+  Venus:   Astronomy.Body.Venus,
+  Mars:    Astronomy.Body.Mars,
+  Jupiter: Astronomy.Body.Jupiter,
+  Saturn:  Astronomy.Body.Saturn,
+};
+
+function planetDirection(name, date) {
+  const eq = Astronomy.Equator(_BODY_MAP[name], date, _GEOCENTRE, true, true);
+  return { ra: eq.ra * 15, dec: eq.dec }; // ra: hours → degrees
+}
 
 // ============= Julian Date =============
 
@@ -193,7 +202,7 @@ function pad(n) {
 
 export {
   DEG, RAD, J2000,
-  STARS, PLANETS,
+  STARS, PLANET_NAMES, planetDirection,
   dateToJD, dateObjectToJD,
   gmst, era, localSiderealTime,
   hourAngle, altAz,

@@ -146,18 +146,3 @@ td.name {
 td.below-horizon {
   color: #666680;
 }
-
-/* Status messages */
-.status {
-  font-size: 0.75rem;
-  color: #808090;
-  padding: 0.25rem 0;
-}
-
-.status.error {
-  color: #f44336;
-}
-
-.status.stale {
-  color: #ff9800;
-}

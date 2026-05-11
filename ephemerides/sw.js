@@ -1,9 +1,10 @@
-const CACHE_NAME = 'ephemerides-v3';
+const CACHE_NAME = 'ephemerides-v4';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './astronomy.js',
+  './astronomy-engine.js',
   './app.js',
   './manifest.json',
   './icon.svg',
@@ -26,9 +27,6 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Don't cache API calls — handled by app-level localStorage caching
-  if (e.request.url.includes('ssd.jpl.nasa.gov')) return;
-
   e.respondWith(
     caches.match(e.request).then((cached) => {
       // Return cached, but also update cache in background
