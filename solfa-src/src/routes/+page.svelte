@@ -8,9 +8,10 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { GridState } from '$lib/stores/grid-state.svelte';
 	import { paletteState } from '$lib/stores/palette-state.svelte';
+	import { fileSystemState } from '$lib/stores/file-system-state.svelte';
 	import { dropHandlerState } from '$lib/stores/drop-handler-state.js';
 	import { handleDrop } from '$lib/utils/drop-handler';
-	import { serializeAppState, deserializeAppState } from '$lib/utils/serialization';
+	import { serializeAppState } from '$lib/utils/serialization';
 	import { writeFile } from '$lib/storage/opfs';
 	import { DEFAULT_COLUMNS, DEFAULT_ROWS } from '$lib/constants';
 	import type { SerializedAppState } from '$lib/types/serialization';
@@ -24,7 +25,46 @@
 		handleDrop(op, gridState, paletteState.refMidi, paletteState.mode, paletteState.pitchSystem, paletteState.paletteOctave);
 	});
 
+	const currentJson = $derived(serializeAppState(
+		gridState.cells,
+		gridState.columns,
+		paletteState.entries,
+		paletteState.mode,
+		paletteState.refMidi,
+		paletteState.pitchSystem,
+		paletteState.paletteOctave,
+		paletteState.diatonicKey
+	));
+
+	const isDirty = $derived(
+		fileSystemState.currentPath !== null &&
+		currentJson !== fileSystemState.lastSavedJson
+	);
+
+	const canSave = $derived(isDirty);
+
+	async function handleSave(): Promise<void> {
+		const path = fileSystemState.currentPath;
+		if (!path) return;
+		const json = currentJson;
+		await writeFile(path, json);
+		fileSystemState.markSaved(json, path);
+	}
+
 	async function handleSaveAs(path: string): Promise<void> {
+		const json = currentJson;
+		await writeFile(path, json);
+		fileSystemState.markSaved(json, path);
+	}
+
+	function handleLoad(state: SerializedAppState, path: string): void {
+		gridState.cells = state.grid.cells;
+		paletteState.entries = state.palette.entries;
+		paletteState.mode = state.palette.mode;
+		paletteState.refMidi = state.palette.refMidi;
+		paletteState.pitchSystem = state.palette.pitchSystem;
+		paletteState.paletteOctave = state.palette.paletteOctave;
+		paletteState.diatonicKey = state.palette.diatonicKey;
 		const json = serializeAppState(
 			gridState.cells,
 			gridState.columns,
@@ -35,25 +75,24 @@
 			paletteState.paletteOctave,
 			paletteState.diatonicKey
 		);
-		await writeFile(path, json);
-	}
-
-	function handleLoad(state: SerializedAppState, _path: string): void {
-		gridState.cells = state.grid.cells;
-		paletteState.entries = state.palette.entries;
-		paletteState.mode = state.palette.mode;
-		paletteState.refMidi = state.palette.refMidi;
-		paletteState.pitchSystem = state.palette.pitchSystem;
-		paletteState.paletteOctave = state.palette.paletteOctave;
-		paletteState.diatonicKey = state.palette.diatonicKey;
+		fileSystemState.markSaved(json, path);
 	}
 
 	function handleNew(): void {
 		gridState.clear();
+		fileSystemState.clearCurrent();
+	}
+
+	function handleClearConfirm(): void {
+		gridState.clear();
+		fileSystemState.clearCurrent();
+		showClearConfirm = false;
 	}
 </script>
 
 <Toolbar
+	onSave={handleSave}
+	{canSave}
 	onOpenFiles={() => (showFiles = true)}
 	onClearGrid={() => (showClearConfirm = true)}
 	onEditPalette={() => (showEdit = true)}
@@ -81,7 +120,7 @@
 	message="This will remove all notes from the grid. This cannot be undone."
 	confirmLabel="Clear"
 	destructive={true}
-	onConfirm={() => { gridState.clear(); showClearConfirm = false; }}
+	onConfirm={handleClearConfirm}
 	onCancel={() => (showClearConfirm = false)}
 />
 
