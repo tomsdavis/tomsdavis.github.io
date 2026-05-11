@@ -2,15 +2,7 @@
 	import { paletteState } from '$lib/stores/palette-state.svelte';
 	import PaletteEntryComponent from './PaletteEntry.svelte';
 	import OctaveControl from './OctaveControl.svelte';
-	import PaletteEditDialog from './PaletteEditDialog.svelte';
 	import { subscriptDigit } from '$lib/utils/note-names.js';
-
-	interface Props {
-		onDestructiveChange?: () => void;
-	}
-
-	let { onDestructiveChange }: Props = $props();
-	let showEdit = $state(false);
 
 	let sortedEntries = $derived([...paletteState.entries].sort((a, b) => a.order - b.order));
 
@@ -57,10 +49,7 @@
 			<PaletteEntryComponent {entry} displayLabel={displayLabel(entry)} />
 		{/each}
 	</div>
-	<button class="edit-btn" onclick={() => (showEdit = true)}>Edit</button>
-</aside>
-
-<PaletteEditDialog open={showEdit} onClose={() => (showEdit = false)} {onDestructiveChange} />
+	</aside>
 
 <style>
 	.palette {
@@ -90,19 +79,4 @@
 		margin: 4px 0;
 	}
 
-	.edit-btn {
-		padding: 5px 10px;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		background: var(--bg);
-		color: var(--text-muted);
-		cursor: pointer;
-		font-size: 11px;
-		margin-top: 4px;
-	}
-
-	.edit-btn:hover {
-		border-color: var(--accent);
-		color: var(--accent);
-	}
 </style>

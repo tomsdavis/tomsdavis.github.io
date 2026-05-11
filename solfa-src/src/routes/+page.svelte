@@ -4,6 +4,7 @@
 	import Palette from '$lib/components/Palette.svelte';
 	import DragGhost from '$lib/components/DragGhost.svelte';
 	import SaveLoadDialog from '$lib/components/SaveLoadDialog.svelte';
+	import PaletteEditDialog from '$lib/components/PaletteEditDialog.svelte';
 	import { GridState } from '$lib/stores/grid-state.svelte';
 	import { paletteState } from '$lib/stores/palette-state.svelte';
 	import { dropHandlerState } from '$lib/stores/drop-handler-state.js';
@@ -14,6 +15,7 @@
 
 	const gridState = new GridState(DEFAULT_COLUMNS, DEFAULT_ROWS);
 	let showSaveLoad = $state(false);
+	let showEdit = $state(false);
 
 	dropHandlerState.setHandler((op) => {
 		handleDrop(op, gridState, paletteState.refMidi, paletteState.mode, paletteState.pitchSystem, paletteState.paletteOctave);
@@ -47,9 +49,13 @@
 	}
 </script>
 
-<Toolbar onSaveLoad={() => (showSaveLoad = true)} onClearGrid={() => gridState.clear()} />
+<Toolbar
+	onSaveLoad={() => (showSaveLoad = true)}
+	onClearGrid={() => gridState.clear()}
+	onEditPalette={() => (showEdit = true)}
+/>
 <div class="main-area">
-	<Palette onDestructiveChange={() => gridState.clear()} />
+	<Palette />
 	<Grid {gridState} />
 </div>
 <DragGhost />
@@ -58,6 +64,11 @@
 	onClose={() => (showSaveLoad = false)}
 	onSave={handleSave}
 	onLoad={handleLoad}
+/>
+<PaletteEditDialog
+	open={showEdit}
+	onClose={() => (showEdit = false)}
+	onDestructiveChange={() => gridState.clear()}
 />
 
 <style>

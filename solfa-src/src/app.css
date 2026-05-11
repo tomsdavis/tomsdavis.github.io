@@ -16,7 +16,8 @@
 	/* Layout */
 	--toolbar-height: 48px;
 	--palette-width: 80px;
-	--cell-size: 64px;
+	--cell-size: clamp(44px, 8vmin, 64px);
+	--palette-entry-size: clamp(40px, 7vmin, 56px);
 	--cell-gap: 4px;
 	--cell-radius: 8px;
 

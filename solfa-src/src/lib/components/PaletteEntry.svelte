@@ -83,8 +83,8 @@
 
 <style>
 	.palette-entry {
-		width: 56px;
-		height: 56px;
+		width: var(--palette-entry-size);
+		height: var(--palette-entry-size);
 		cursor: grab;
 		touch-action: none;
 	}
