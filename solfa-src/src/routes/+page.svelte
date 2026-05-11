@@ -5,6 +5,7 @@
 	import DragGhost from '$lib/components/DragGhost.svelte';
 	import SaveLoadDialog from '$lib/components/SaveLoadDialog.svelte';
 	import PaletteEditDialog from '$lib/components/PaletteEditDialog.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { GridState } from '$lib/stores/grid-state.svelte';
 	import { paletteState } from '$lib/stores/palette-state.svelte';
 	import { dropHandlerState } from '$lib/stores/drop-handler-state.js';
@@ -15,14 +16,15 @@
 
 	const gridState = new GridState(DEFAULT_COLUMNS, DEFAULT_ROWS);
 	let showSaveLoad = $state(false);
+	let showClearConfirm = $state(false);
 	let showEdit = $state(false);
 
 	dropHandlerState.setHandler((op) => {
 		handleDrop(op, gridState, paletteState.refMidi, paletteState.mode, paletteState.pitchSystem, paletteState.paletteOctave);
 	});
 
-	function handleSave(name: string) {
-		saveNamed(
+	async function handleSave(name: string) {
+		await saveNamed(
 			name,
 			gridState.cells,
 			gridState.columns,
@@ -43,15 +45,15 @@
 		paletteState.entries = state.palette.entries;
 		paletteState.mode = state.palette.mode;
 		paletteState.refMidi = state.palette.refMidi;
-		paletteState.pitchSystem = state.palette.pitchSystem ?? 'relative';
-		paletteState.paletteOctave = state.palette.paletteOctave ?? 0;
-		paletteState.diatonicKey = state.palette.diatonicKey ?? 'C';
+		paletteState.pitchSystem = state.palette.pitchSystem;
+		paletteState.paletteOctave = state.palette.paletteOctave;
+		paletteState.diatonicKey = state.palette.diatonicKey;
 	}
 </script>
 
 <Toolbar
 	onSaveLoad={() => (showSaveLoad = true)}
-	onClearGrid={() => gridState.clear()}
+	onClearGrid={() => (showClearConfirm = true)}
 	onEditPalette={() => (showEdit = true)}
 />
 <div class="main-area">
@@ -69,6 +71,15 @@
 	open={showEdit}
 	onClose={() => (showEdit = false)}
 	onDestructiveChange={() => gridState.clear()}
+/>
+<ConfirmDialog
+	open={showClearConfirm}
+	title="Clear grid?"
+	message="This will remove all notes from the grid. This cannot be undone."
+	confirmLabel="Clear"
+	destructive={true}
+	onConfirm={() => { gridState.clear(); showClearConfirm = false; }}
+	onCancel={() => (showClearConfirm = false)}
 />
 
 <style>

@@ -345,8 +345,10 @@
 
 	<ConfirmDialog
 		open={confirmOpen}
+		title="Change palette mode?"
 		message="This will clear all notes from the grid. Continue?"
 		confirmLabel="Clear & Switch"
+		destructive={true}
 		onConfirm={handleConfirm}
 		onCancel={handleCancelConfirm}
 	/>

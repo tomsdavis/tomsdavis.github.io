@@ -1,11 +1,9 @@
 import type { GridCell } from '$lib/types/grid.js';
-import type { Note } from '$lib/types/note.js';
 import type { PaletteEntry, PaletteMode, PitchSystem } from '$lib/types/palette.js';
 import type { SerializedGrid, SerializedPalette, SerializedAppState } from '$lib/types/serialization.js';
-import { C0_MIDI } from '$lib/constants.js';
-import { pitchToMidi } from '$lib/audio/pitch.js';
+import { readFile, writeFile, deleteEntry, scanTree, OpfsError } from '$lib/storage/opfs.js';
 
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 1;
 
 // --- Grid ---
 
@@ -20,6 +18,7 @@ export function serializeGrid(cells: GridCell[], columns: number): string {
 
 export function deserializeGrid(json: string): SerializedGrid {
 	const data: SerializedGrid = JSON.parse(json);
+	if (data.version !== 1) throw new Error('Unsupported file version');
 	return data;
 }
 
@@ -46,62 +45,9 @@ export function serializePalette(
 }
 
 export function deserializePalette(json: string): SerializedPalette {
-	const raw = JSON.parse(json);
-	return migratePalette(raw);
-}
-
-function migratePalette(data: SerializedPalette & { octave?: number }): SerializedPalette {
-	let result = data;
-	if (result.version < 2) {
-		// v1 used octave (integer), refMidi didn't exist; root was always C
-		const octave = result.octave ?? 4;
-		result = { ...result, version: 2, refMidi: C0_MIDI + octave * 12 };
-	}
-	// Default pitchSystem for pre-v3 data
-	if (!result.pitchSystem) {
-		result = { ...result, pitchSystem: 'relative' };
-	}
-	// Default paletteOctave for pre-v4 data
-	if (result.paletteOctave === undefined) {
-		result = {
-			...result,
-			paletteOctave: result.pitchSystem === 'absolute' ? 4 : 0
-		};
-	}
-	// Default diatonicKey
-	if (!result.diatonicKey) {
-		result = { ...result, diatonicKey: 'C' };
-	}
-	return result;
-}
-
-/** Migrate grid cells from v2 (no midiNote) to v3 (with midiNote), and v3 to v4 (with baseMidiOffset) */
-function migrateGrid(grid: SerializedGrid, refMidi: number, pitchSystem: PitchSystem = 'relative'): SerializedGrid {
-	let cells = grid.cells;
-
-	// v2 → v3: compute midiNote from pitch + refMidi
-	if (grid.version < 3) {
-		cells = cells.map((cell) => {
-			if (!cell) return null;
-			if ((cell as Note).midiNote === undefined) {
-				return { ...cell, midiNote: pitchToMidi(cell.pitch, refMidi) };
-			}
-			return cell;
-		});
-	}
-
-	// v3 → v4: compute baseMidiOffset for relative-mode notes
-	if (grid.version < 4) {
-		cells = cells.map((cell) => {
-			if (!cell) return null;
-			if (pitchSystem === 'relative' && (cell as Note).baseMidiOffset === undefined) {
-				return { ...cell, baseMidiOffset: cell.midiNote - refMidi };
-			}
-			return cell;
-		});
-	}
-
-	return { ...grid, version: CURRENT_VERSION, cells };
+	const data: SerializedPalette = JSON.parse(json);
+	if (data.version !== 1) throw new Error('Unsupported file version');
+	return data;
 }
 
 // --- Full App State ---
@@ -138,51 +84,26 @@ export function serializeAppState(
 
 export function deserializeAppState(json: string): SerializedAppState {
 	const raw = JSON.parse(json);
-	const palette = migratePalette(raw.palette);
-	const grid = migrateGrid(raw.grid, palette.refMidi, palette.pitchSystem);
-	return { ...raw, palette, grid };
+	if (raw.version !== 1) throw new Error('Unsupported file version');
+	if (raw.palette?.version !== 1) throw new Error('Unsupported file version');
+	if (raw.grid?.version !== 1) throw new Error('Unsupported file version');
+	return raw as SerializedAppState;
 }
 
-// --- localStorage helpers ---
+// --- OPFS-backed named save helpers ---
 
-const APP_STATE_STORAGE_KEY = 'solfa2-state';
-
-export function saveToLocalStorage(
-	cells: GridCell[],
-	columns: number,
-	entries: PaletteEntry[],
-	mode: PaletteMode,
-	refMidi: number,
-	pitchSystem: PitchSystem = 'relative',
-	paletteOctave: number = 0,
-	diatonicKey: string = 'C'
-): void {
-	const json = serializeAppState(cells, columns, entries, mode, refMidi, pitchSystem, paletteOctave, diatonicKey);
-	localStorage.setItem(APP_STATE_STORAGE_KEY, json);
-}
-
-export function loadFromLocalStorage(): SerializedAppState | null {
-	const json = localStorage.getItem(APP_STATE_STORAGE_KEY);
-	if (!json) return null;
-	try {
-		return deserializeAppState(json);
-	} catch {
-		return null;
-	}
-}
-
-export function listSaves(): string[] {
+export async function listSaves(): Promise<string[]> {
+	const tree = await scanTree();
 	const saves: string[] = [];
-	for (let i = 0; i < localStorage.length; i++) {
-		const key = localStorage.key(i);
-		if (key?.startsWith('solfa2-save-')) {
-			saves.push(key.replace('solfa2-save-', ''));
+	for (const node of tree.children ?? []) {
+		if (node.type === 'file' && node.name.endsWith('.solfa.json')) {
+			saves.push(node.name.slice(0, -'.solfa.json'.length));
 		}
 	}
 	return saves.sort();
 }
 
-export function saveNamed(
+export async function saveNamed(
 	name: string,
 	cells: GridCell[],
 	columns: number,
@@ -192,21 +113,26 @@ export function saveNamed(
 	pitchSystem: PitchSystem = 'relative',
 	paletteOctave: number = 0,
 	diatonicKey: string = 'C'
-): void {
+): Promise<void> {
 	const json = serializeAppState(cells, columns, entries, mode, refMidi, pitchSystem, paletteOctave, diatonicKey);
-	localStorage.setItem(`solfa2-save-${name}`, json);
+	await writeFile(`/${name}.solfa.json`, json);
 }
 
-export function loadNamed(name: string): SerializedAppState | null {
-	const json = localStorage.getItem(`solfa2-save-${name}`);
-	if (!json) return null;
+export async function loadNamed(name: string): Promise<SerializedAppState | null> {
 	try {
+		const json = await readFile(`/${name}.solfa.json`);
 		return deserializeAppState(json);
-	} catch {
-		return null;
+	} catch (e) {
+		if (e instanceof OpfsError && e.code === 'NOT_FOUND') return null;
+		throw e;
 	}
 }
 
-export function deleteNamed(name: string): void {
-	localStorage.removeItem(`solfa2-save-${name}`);
+export async function deleteNamed(name: string): Promise<void> {
+	try {
+		await deleteEntry(`/${name}.solfa.json`);
+	} catch (e) {
+		if (e instanceof OpfsError && e.code === 'NOT_FOUND') return;
+		throw e;
+	}
 }

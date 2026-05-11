@@ -8,20 +8,15 @@ export interface SerializedGrid {
 	cells: GridCell[];
 }
 
-/** Serialized palette format (v2+) */
+/** Serialized palette format (v1) */
 export interface SerializedPalette {
 	version: number;
 	mode: PaletteMode;
 	entries: PaletteEntry[];
 	refMidi: number;
-	/** Top-level pitch system (v3+, defaults to 'relative' for migration) */
-	pitchSystem?: PitchSystem;
-	/** Palette octave (v4+, defaults to 0 for relative, 4 for absolute) */
-	paletteOctave?: number;
-	/** Diatonic key for absolute diatonic mode (defaults to 'C') */
-	diatonicKey?: string;
-	/** @deprecated v1 only — use refMidi */
-	octave?: number;
+	pitchSystem: PitchSystem;
+	paletteOctave: number;
+	diatonicKey: string;
 }
 
 /** Complete serialized app state */

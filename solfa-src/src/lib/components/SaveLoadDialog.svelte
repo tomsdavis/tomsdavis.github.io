@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { listSaves, saveNamed, loadNamed, deleteNamed } from '$lib/utils/serialization';
+	import { listSaves, loadNamed, deleteNamed } from '$lib/utils/serialization';
 	import type { SerializedAppState } from '$lib/types/serialization';
 
 	interface Props {
 		open: boolean;
 		onClose: () => void;
-		onSave: (name: string) => void;
+		onSave: (name: string) => Promise<void>;
 		onLoad: (state: SerializedAppState) => void;
 	}
 
@@ -15,29 +15,29 @@
 
 	$effect(() => {
 		if (open) {
-			saves = listSaves();
+			listSaves().then((s) => (saves = s));
 		}
 	});
 
-	function handleSave() {
+	async function handleSave() {
 		const name = saveName.trim();
 		if (!name) return;
-		onSave(name);
-		saves = listSaves();
+		await onSave(name);
+		saves = await listSaves();
 		saveName = '';
 	}
 
-	function handleLoad(name: string) {
-		const state = loadNamed(name);
+	async function handleLoad(name: string) {
+		const state = await loadNamed(name);
 		if (state) {
 			onLoad(state);
 			onClose();
 		}
 	}
 
-	function handleDelete(name: string) {
-		deleteNamed(name);
-		saves = listSaves();
+	async function handleDelete(name: string) {
+		await deleteNamed(name);
+		saves = await listSaves();
 	}
 </script>
 

@@ -59,7 +59,7 @@ describe('serialization', () => {
 		it('includes version field', () => {
 			const json = serializeGrid([], 4);
 			const parsed = JSON.parse(json);
-			expect(parsed.version).toBe(4);
+			expect(parsed.version).toBe(1);
 		});
 
 		it('preserves baseMidiOffset on notes', () => {
@@ -101,62 +101,16 @@ describe('serialization', () => {
 			expect(result.entries[1].name).toBe('E');
 		});
 
-		it('includes version 4 field', () => {
+		it('includes version field', () => {
 			const json = serializePalette([], 'chromatic', 60);
 			const parsed = JSON.parse(json);
-			expect(parsed.version).toBe(4);
+			expect(parsed.version).toBe(1);
 		});
 
 		it('preserves paletteOctave', () => {
 			const json = serializePalette([], 'chromatic', 60, 'relative', 2);
 			const result = deserializePalette(json);
 			expect(result.paletteOctave).toBe(2);
-		});
-
-		it('migrates v1 payload (octave) to refMidi', () => {
-			const v1Payload = JSON.stringify({
-				version: 1,
-				mode: 'chromatic',
-				entries: [],
-				octave: 4
-			});
-			const result = deserializePalette(v1Payload);
-			expect(result.refMidi).toBe(C0_MIDI + 4 * 12); // 60
-		});
-
-		it('migrates v1 payload with octave=3', () => {
-			const v1Payload = JSON.stringify({
-				version: 1,
-				mode: 'chromatic',
-				entries: [],
-				octave: 3
-			});
-			const result = deserializePalette(v1Payload);
-			expect(result.refMidi).toBe(C0_MIDI + 3 * 12); // 48
-		});
-
-		it('defaults paletteOctave for pre-v4 relative palette', () => {
-			const v3Payload = JSON.stringify({
-				version: 3,
-				mode: 'chromatic',
-				entries: [],
-				refMidi: 60,
-				pitchSystem: 'relative'
-			});
-			const result = deserializePalette(v3Payload);
-			expect(result.paletteOctave).toBe(0);
-		});
-
-		it('defaults paletteOctave for pre-v4 absolute palette', () => {
-			const v3Payload = JSON.stringify({
-				version: 3,
-				mode: 'chromatic',
-				entries: [],
-				refMidi: C0_MIDI,
-				pitchSystem: 'absolute'
-			});
-			const result = deserializePalette(v3Payload);
-			expect(result.paletteOctave).toBe(4);
 		});
 	});
 
@@ -225,97 +179,6 @@ describe('serialization', () => {
 			expect(result.cells[0]?.midiNote).toBe(66);
 		});
 
-		it('migrates v2 grid notes to include midiNote', () => {
-			const v2Payload = JSON.stringify({
-				version: 2,
-				grid: {
-					version: 2,
-					columns: 2,
-					cells: [
-						{
-							id: 'n1',
-							pitch: { kind: 'semitone', semitones: 4 },
-							label: 'E',
-							color: '#e74c3c'
-						},
-						null
-					]
-				},
-				palette: {
-					version: 2,
-					mode: 'chromatic',
-					entries: [],
-					refMidi: 60
-				}
-			});
-			const result = deserializeAppState(v2Payload);
-			// midiNote should be computed as refMidi + semitones = 60 + 4 = 64
-			expect(result.grid.cells[0]?.midiNote).toBe(64);
-			// v2→v4 also adds baseMidiOffset for relative mode
-			expect(result.grid.cells[0]?.baseMidiOffset).toBe(4);
-		});
-
-		it('migrates v3 relative notes to include baseMidiOffset', () => {
-			const v3Payload = JSON.stringify({
-				version: 3,
-				grid: {
-					version: 3,
-					columns: 2,
-					cells: [
-						{
-							id: 'n1',
-							pitch: { kind: 'semitone', semitones: 7 },
-							midiNote: 67,
-							label: 'So₄',
-							color: '#e74c3c'
-						},
-						null
-					]
-				},
-				palette: {
-					version: 3,
-					mode: 'diatonic',
-					entries: [],
-					refMidi: 60,
-					pitchSystem: 'relative'
-				}
-			});
-			const result = deserializeAppState(v3Payload);
-			// baseMidiOffset = midiNote - refMidi = 67 - 60 = 7
-			expect(result.grid.cells[0]?.baseMidiOffset).toBe(7);
-			expect(result.grid.cells[0]?.midiNote).toBe(67);
-		});
-
-		it('migrates v3 absolute notes without baseMidiOffset', () => {
-			const v3Payload = JSON.stringify({
-				version: 3,
-				grid: {
-					version: 3,
-					columns: 2,
-					cells: [
-						{
-							id: 'n1',
-							pitch: { kind: 'semitone', semitones: 0 },
-							midiNote: 60,
-							label: 'C4',
-							color: '#e74c3c'
-						},
-						null
-					]
-				},
-				palette: {
-					version: 3,
-					mode: 'chromatic',
-					entries: [],
-					refMidi: C0_MIDI,
-					pitchSystem: 'absolute'
-				}
-			});
-			const result = deserializeAppState(v3Payload);
-			// Absolute mode: no baseMidiOffset added
-			expect(result.grid.cells[0]?.baseMidiOffset).toBeUndefined();
-		});
-
 		it('round-trip preserves diatonicKey', () => {
 			const cells: GridCell[] = [null, null];
 			const json = serializeAppState(cells, 2, [], 'diatonic', C0_MIDI, 'absolute', 4, 'G');
@@ -323,24 +186,7 @@ describe('serialization', () => {
 			expect(result.palette.diatonicKey).toBe('G');
 		});
 
-		it('defaults diatonicKey to C when missing', () => {
-			const v4Payload = JSON.stringify({
-				version: 4,
-				grid: { version: 4, columns: 2, cells: [null, null] },
-				palette: {
-					version: 4,
-					mode: 'diatonic',
-					entries: [],
-					refMidi: C0_MIDI,
-					pitchSystem: 'absolute',
-					paletteOctave: 4
-				}
-			});
-			const result = deserializeAppState(v4Payload);
-			expect(result.palette.diatonicKey).toBe('C');
-		});
-
-		it('v4 round-trip preserves all fields', () => {
+		it('round-trip preserves all fields', () => {
 			const note = makeNote('n1', 7, 'So₁', 79, 19);
 			const cells: GridCell[] = [note, null];
 			const json = serializeAppState(cells, 2, [], 'diatonic', 60, 'relative', 1);
@@ -350,6 +196,15 @@ describe('serialization', () => {
 			expect(cell.midiNote).toBe(79);
 			expect(result.palette.paletteOctave).toBe(1);
 			expect(result.palette.pitchSystem).toBe('relative');
+		});
+
+		it('rejects payload with wrong version', () => {
+			const payload = JSON.stringify({
+				version: 0,
+				grid: { version: 0, columns: 2, cells: [null, null] },
+				palette: { version: 0, mode: 'chromatic', entries: [], refMidi: 60, pitchSystem: 'relative', paletteOctave: 0, diatonicKey: 'C' }
+			});
+			expect(() => deserializeAppState(payload)).toThrow('Unsupported file version');
 		});
 	});
 });
