@@ -3,19 +3,20 @@
 	import Grid from '$lib/components/Grid.svelte';
 	import Palette from '$lib/components/Palette.svelte';
 	import DragGhost from '$lib/components/DragGhost.svelte';
-	import SaveLoadDialog from '$lib/components/SaveLoadDialog.svelte';
+	import FileBrowserDialog from '$lib/components/FileBrowserDialog.svelte';
 	import PaletteEditDialog from '$lib/components/PaletteEditDialog.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { GridState } from '$lib/stores/grid-state.svelte';
 	import { paletteState } from '$lib/stores/palette-state.svelte';
 	import { dropHandlerState } from '$lib/stores/drop-handler-state.js';
 	import { handleDrop } from '$lib/utils/drop-handler';
-	import { saveNamed } from '$lib/utils/serialization';
+	import { serializeAppState, deserializeAppState } from '$lib/utils/serialization';
+	import { writeFile } from '$lib/storage/opfs';
 	import { DEFAULT_COLUMNS, DEFAULT_ROWS } from '$lib/constants';
 	import type { SerializedAppState } from '$lib/types/serialization';
 
 	const gridState = new GridState(DEFAULT_COLUMNS, DEFAULT_ROWS);
-	let showSaveLoad = $state(false);
+	let showFiles = $state(false);
 	let showClearConfirm = $state(false);
 	let showEdit = $state(false);
 
@@ -23,9 +24,8 @@
 		handleDrop(op, gridState, paletteState.refMidi, paletteState.mode, paletteState.pitchSystem, paletteState.paletteOctave);
 	});
 
-	async function handleSave(name: string) {
-		await saveNamed(
-			name,
+	async function handleSaveAs(path: string): Promise<void> {
+		const json = serializeAppState(
 			gridState.cells,
 			gridState.columns,
 			paletteState.entries,
@@ -35,13 +35,11 @@
 			paletteState.paletteOctave,
 			paletteState.diatonicKey
 		);
+		await writeFile(path, json);
 	}
 
-	function handleLoad(state: SerializedAppState) {
-		// Restore grid
+	function handleLoad(state: SerializedAppState, _path: string): void {
 		gridState.cells = state.grid.cells;
-
-		// Restore palette
 		paletteState.entries = state.palette.entries;
 		paletteState.mode = state.palette.mode;
 		paletteState.refMidi = state.palette.refMidi;
@@ -49,10 +47,14 @@
 		paletteState.paletteOctave = state.palette.paletteOctave;
 		paletteState.diatonicKey = state.palette.diatonicKey;
 	}
+
+	function handleNew(): void {
+		gridState.clear();
+	}
 </script>
 
 <Toolbar
-	onSaveLoad={() => (showSaveLoad = true)}
+	onOpenFiles={() => (showFiles = true)}
 	onClearGrid={() => (showClearConfirm = true)}
 	onEditPalette={() => (showEdit = true)}
 />
@@ -61,11 +63,12 @@
 	<Grid {gridState} />
 </div>
 <DragGhost />
-<SaveLoadDialog
-	open={showSaveLoad}
-	onClose={() => (showSaveLoad = false)}
-	onSave={handleSave}
+<FileBrowserDialog
+	open={showFiles}
+	onClose={() => (showFiles = false)}
 	onLoad={handleLoad}
+	onSaveAs={handleSaveAs}
+	onNew={handleNew}
 />
 <PaletteEditDialog
 	open={showEdit}

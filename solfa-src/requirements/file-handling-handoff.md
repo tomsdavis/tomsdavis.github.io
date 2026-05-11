@@ -682,7 +682,7 @@ Workspace export (zip), Web Share Target receiver (PWA-side inbound share). Both
 |---|---|---|---|
 | 1 | Sonnet | Low | Migration code stripped, ConfirmDialog, trashcan confirm | ✅ complete 2026-05-11 |
 | 2 | Sonnet (with Opus contract) | Medium | OPFS wrapper, existing UI on OPFS | ✅ complete 2026-05-11 |
-| 3 | Sonnet | Medium | FileBrowserDialog replaces SaveLoadDialog |
+| 3 | Sonnet | Medium | FileBrowserDialog replaces SaveLoadDialog | ✅ complete 2026-05-11 |
 | 4 | Opus | High | Dirty indicator, Save/Save-As split |
 | 5 | Sonnet | Low | Real-device verification of import/export |
 
