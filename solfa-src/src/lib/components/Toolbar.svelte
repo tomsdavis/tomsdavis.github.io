@@ -6,17 +6,22 @@
 	interface Props {
 		onSave?: () => void;
 		canSave?: boolean;
+		currentFile?: string | null;
 		onOpenFiles?: () => void;
 		onClearGrid?: () => void;
 		onEditPalette?: () => void;
 	}
 
-	let { onSave, canSave = false, onOpenFiles, onClearGrid, onEditPalette }: Props = $props();
+	let { onSave, canSave = false, currentFile = null, onOpenFiles, onClearGrid, onEditPalette }: Props = $props();
 </script>
 
 <header class="toolbar">
 	<div class="toolbar-left">
-		<span class="title">Solfa</span>
+		<span class="app-name">Solfa</span>
+		{#if currentFile}
+			<span class="title-sep" aria-hidden="true">—</span>
+			<span class="file-name">{currentFile}</span>
+		{/if}
 	</div>
 	<div class="toolbar-actions">
 		{#if paletteState.pitchSystem === 'relative'}
@@ -79,18 +84,38 @@
 	.toolbar-left {
 		display: flex;
 		align-items: center;
+		gap: 6px;
+		min-width: 0;
+		overflow: hidden;
 	}
 
-	.title {
+	.app-name {
 		font-size: 18px;
 		font-weight: 700;
 		color: var(--text);
+		flex-shrink: 0;
+	}
+
+	.title-sep {
+		font-size: 14px;
+		color: var(--text-muted);
+		flex-shrink: 0;
+	}
+
+	.file-name {
+		font-size: 15px;
+		font-weight: 400;
+		color: var(--text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
 	}
 
 	@media (max-width: 400px) {
-		.title {
-			display: none;
-		}
+		.app-name { display: none; }
+		.title-sep { display: none; }
+		.file-name { display: none; }
 	}
 
 	.toolbar-actions {

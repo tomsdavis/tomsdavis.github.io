@@ -12,7 +12,7 @@
 	import { dropHandlerState } from '$lib/stores/drop-handler-state.js';
 	import { handleDrop } from '$lib/utils/drop-handler';
 	import { serializeAppState } from '$lib/utils/serialization';
-	import { writeFile } from '$lib/storage/opfs';
+	import { writeFile, basename } from '$lib/storage/opfs';
 	import { DEFAULT_COLUMNS, DEFAULT_ROWS } from '$lib/constants';
 	import type { SerializedAppState } from '$lib/types/serialization';
 
@@ -42,6 +42,12 @@
 	);
 
 	const canSave = $derived(isDirty);
+
+	const currentFileName = $derived(
+		fileSystemState.currentPath
+			? basename(fileSystemState.currentPath).replace(/\.solfa\.json$/, '')
+			: null
+	);
 
 	async function handleSave(): Promise<void> {
 		const path = fileSystemState.currentPath;
@@ -93,6 +99,7 @@
 <Toolbar
 	onSave={handleSave}
 	{canSave}
+	currentFile={currentFileName}
 	onOpenFiles={() => (showFiles = true)}
 	onClearGrid={() => (showClearConfirm = true)}
 	onEditPalette={() => (showEdit = true)}

@@ -359,7 +359,8 @@
 			const blob = new Blob([json], { type: 'application/json' });
 			const file = new File([blob], name, { type: 'application/json' });
 
-			// Detect mobile
+			// Mobile prefers Web Share; desktop prefers FSA (avoids OS share sheet).
+			// iOS Safari: Web Share requires a user gesture and AbortError is normal if the user dismisses.
 			const isMobile = ('userAgentData' in navigator && (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData?.mobile) ||
 				/Mobi|Android|iPhone/.test(navigator.userAgent);
 
@@ -409,7 +410,7 @@
 <!-- Hidden import input -->
 <input
 	type="file"
-	accept=".solfa.json,.json,application/json"
+	accept=".solfa.json,application/json"
 	style="display:none"
 	bind:this={importInput}
 	onchange={handleImportFile}
