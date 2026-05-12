@@ -39,7 +39,9 @@ src/
       pitch.ts                     # pitchToMidi, midiToHz, hzToMidi, resolvePlaybackMidi
       voice.ts                     # createVoice, stopVoice
     components/
+      ConfirmDialog.svelte         # Reusable confirmation modal (title, message, destructive label)
       DragGhost.svelte             # Fixed-position ghost following pointer during drag
+      FileBrowserDialog.svelte     # OPFS-backed file browser: tree view, save-as, open, inline rename, delete, copy/paste, new folder, new composition, import (.solfa.json), export (FSA/share/download)
       Grid.svelte                  # Renders GridRow list; scrollable container
       GridCell.svelte              # Single cell; handles playback touch + drag source
       GridRow.svelte               # Row of GridCells
@@ -49,15 +51,17 @@ src/
       OctaveControl.svelte         # − / octave / + buttons (palette sidebar, both modes)
       Palette.svelte               # Sidebar; PaletteEntry list + OctaveControl (always shown)
       PaletteEntry.svelte          # Draggable palette note
-      SaveLoadDialog.svelte        # Modal: named save/load/delete via localStorage
-      Toolbar.svelte               # App bar: title, BasePitchControl, Save/Load, ModeToggle
+      Toolbar.svelte               # App bar: title (+ filename when open), icon buttons (gear=edit palette, disk=save, folder=files, trash=clear), BasePitchControl, ModeToggle
       UpdateToast.svelte           # PWA "new version available" toast (bottom-centre)
     constants.ts                   # DEFAULT_COLUMNS=8, DEFAULT_ROWS=4, C0_MIDI, A4_MIDI, MIN/MAX_PALETTE_OCTAVE_RELATIVE, etc.
+    storage/
+      opfs.ts                      # Full OPFS API: parsePath, joinPath, dirname, basename, scanTree, readFile, writeFile, deleteEntry, move, copy, ensureDir, exists. OpfsError with typed codes; DOMException mapping.
     stores/
       app-state.svelte.ts          # appState — mode: 'composition' | 'playback'
       audio-state.svelte.ts        # audioState — wraps AudioEngine, tracks playingVoices, playNoteByMidi
       drag-state.svelte.ts         # dragState — current DragOperation (source, x, y, dropTarget, voiceId)
       drop-handler-state.ts        # dropHandlerState — singleton callback set from +page.svelte
+      file-system-state.svelte.ts  # fileSystemState — tree (FileNode), selectedPath, clipboard, currentPath, lastSavedJson; refresh() + markSaved() + clearCurrent()
       grid-state.svelte.ts         # GridState class — flat GridCell[] array, row/col helpers
       palette-state.svelte.ts      # paletteState — pitchSystem, mode, refMidi, paletteOctave, diatonicKey, entries[], CRUD, setPitchSystem, setDiatonicKey
       sw-update-state.svelte.ts    # swUpdateState — tracks SW updateAvailable; init() registers listeners, applyUpdate() posts SKIP_WAITING
@@ -74,14 +78,16 @@ src/
       drop-handler.ts              # handleDrop(op, gridState, refMidi, mode, pitchSystem, paletteOctave) — central drop logic
       grid-operations.ts           # Pure functions: insertAndShift, moveNote, moveWithInsert
       note-names.ts                # chromaticName, chromaticSolfegeName, gridLabel, subscriptDigit, majorScaleNoteNames, majorScaleSemitones, keyRootSemitone, ALL_KEY_NAMES
-      serialization.ts             # serialize/deserialize + localStorage helpers
+      serialization.ts             # serialize/deserialize (v1, no migration); OPFS-backed saveNamed/loadNamed/listSaves/deleteNamed (async)
   routes/
     +layout.svelte / +layout.ts    # SvelteKit layout (SPA); inits swUpdateState, renders UpdateToast
     +page.svelte                   # App root: wires GridState, dropHandler, save/load
   service-worker.ts                # PWA service worker — precaches build+files+prerendered, cache-first fetch, SKIP_WAITING handler
   tests/
     lib/audio/pitch.test.ts
+    lib/storage/opfs.test.ts
     lib/stores/grid-state.test.ts
+    lib/stores/file-system-state.test.ts
     lib/stores/palette-state.test.ts
     lib/utils/{colors,drop-handler,grid-operations,note-names,serialization}.test.ts
 ```
@@ -137,14 +143,22 @@ All stores are singleton class instances exported as module-level constants (Sve
 - **The SW does not run under `deno task dev`** — `$service-worker.build` is empty in dev. Use `deno task preview` after `deno task build` to test offline / installability / Lighthouse.
 - **After significant changes** (new routes, new static assets, build-tooling changes, theme/colour updates, manifest changes): run `deno task build && deno task preview`, then in Chrome DevTools verify (a) Application → Manifest parses with no warnings, (b) Application → Service Workers shows the new version activated, (c) Network → Offline → reload still loads the app, (d) Lighthouse PWA audit still passes. Also re-check the manifest colour-sync against `--bg` if the theme moved.
 
+### File Handling / OPFS
+- Files are stored in the browser's **Origin Private File System** (OPFS), replacing the old localStorage named-save approach. File format is `.solfa.json`.
+- `src/lib/storage/opfs.ts` is a typed wrapper around the OPFS API. Pure path helpers (`parsePath`, `joinPath`, `dirname`, `basename`) + async operations (`scanTree`, `readFile`, `writeFile`, `deleteEntry`, `move`, `copy`, `ensureDir`, `exists`). All errors surface as `OpfsError` with a typed `code` (`NOT_FOUND`, `ALREADY_EXISTS`, `TYPE_MISMATCH`, `LOCKED`, `QUOTA`, `INVALID_PATH`, `UNAVAILABLE`, `UNKNOWN`).
+- `move()` prefers the native `FileSystemFileHandle.move()` (Chrome 121+) for atomic rename; falls back to read/write/delete for other browsers and for directories.
+- `fileSystemState` tracks the live OPFS tree (`FileNode`), `selectedPath`, `clipboard`, `currentPath` (path of the currently open file), and `lastSavedJson` (JSON snapshot at last save, used to drive `isDirty`).
+- **Dirty indicator**: `isDirty` is a `$derived` in `+page.svelte` that re-serializes the current app state and compares to `fileSystemState.lastSavedJson`. The Save (disk icon) button in the toolbar is disabled+dim when there is no `currentPath` or `!isDirty`.
+- **Toolbar file buttons** (left-to-right): gear (Edit palette) → disk (Save, disabled when not dirty) → folder (Open FileBrowserDialog) → trash (Clear grid). Current filename shown in title as `"Solfa — name"`, truncated with ellipsis on narrow viewports; hidden on <400 px.
+- **FileBrowserDialog** replaces the old `SaveLoadDialog`. Features: folder tree with expand/collapse; save-as (names the file in the current or root dir); open; inline rename; delete with confirm; copy/paste; new folder; new composition; import (`.solfa.json,application/json`); export via File System Access API → Web Share API → `<a download>` fallback (in that order). iOS Web Share can emit `AbortError` on dismiss — that is caught and silently ignored.
+- `saveNamed` / `loadNamed` / `listSaves` / `deleteNamed` in `serialization.ts` are now **async** and OPFS-backed. `listSaves` scans the root for `*.solfa.json` and returns bare names.
+
 ### Serialization
-- `SerializedAppState` (version 4): `{ version, grid: SerializedGrid, palette: SerializedPalette }`.
-- Grid notes include `midiNote` field (v3+) and `baseMidiOffset` field for relative-mode notes (v4+).
-- Palette includes `pitchSystem` field (v3+, defaults to `'relative'`), `paletteOctave` field (v4+), and `diatonicKey` field (optional, defaults to `'C'`).
-- **v1→v2 migration**: `refMidi = C0_MIDI + (octave ?? 4) * 12`.
-- **v2→v3 migration**: `migrateGrid` computes `midiNote` from `pitch + palette.refMidi`; adds `pitchSystem: 'relative'`.
-- **v3→v4 migration**: `migrateGrid` computes `baseMidiOffset = midiNote - refMidi` for relative-mode notes; `migratePalette` defaults `paletteOctave` (0 for relative, 4 for absolute).
-- Named saves stored in localStorage as `solfa2-save-{name}`.
+- `SerializedAppState` **version 1** (clean break — migration chain stripped): `{ version: 1, grid: SerializedGrid, palette: SerializedPalette }`.
+- `SerializedGrid`: `{ version, columns, cells }` — `cells` is the raw `GridCell[]` (includes `midiNote`, `baseMidiOffset` for relative-mode notes, `baseName` for absolute diatonic).
+- `SerializedPalette`: `{ version, mode, entries, refMidi, pitchSystem, paletteOctave, diatonicKey }`.
+- `deserializeAppState` / `deserializeGrid` / `deserializePalette` reject any version ≠ 1.
+- Old localStorage saves (`solfa2-save-{name}`) are no longer read or written. No migration path from the old format.
 
 ## What Is NOT Yet Built
 
@@ -154,10 +168,13 @@ From `detailed_requirements.md`:
 - **Capacitor** mobile packaging
 - **Child-friendly visual theme** (monster characters etc.)
 - `end-of-row` drop target type exists in `drop-handler.ts` but `resolveDropTarget` never emits it — the `between/after` on the last cell implicitly covers it via the `insertCol >= columns` check.
+- **Mobile UX stages 2+** — stage 1 (toolbar icon buttons + 44–64 px cell clamp) is done; later stages TBD in `requirements/mobile-ux-handoff.md`.
 
 ## Notes / Gotchas
 
 - where appropriate, use red-green test-driven development
+
+- **Cell / palette-entry sizing**: sizes are vmin-relative, clamped between 44 px (HIG minimum tap target) and 64 px via CSS `clamp()`. Editing in `app.css` and the relevant component `<style>` blocks.
 
 - `svelte-kit sync` must be run via `deno task dev` (not npm). The `.svelte-kit/` dir is generated at dev time.
 - Peer dep warning (vite-plugin-svelte wants vite@^5, project uses vite@6) — works fine, ignore.
