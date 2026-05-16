@@ -121,6 +121,7 @@
 	onLoad={handleLoad}
 	onSaveAs={handleSaveAs}
 	onNew={handleNew}
+	{isDirty}
 />
 <PaletteEditDialog
 	open={showEdit}

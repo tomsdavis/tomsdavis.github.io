@@ -13,9 +13,10 @@
 		onLoad: (state: SerializedAppState, path: string) => void;
 		onSaveAs: (path: string) => Promise<void>;
 		onNew: () => void;
+		isDirty?: boolean;
 	}
 
-	let { open, onClose, onLoad, onSaveAs, onNew }: Props = $props();
+	let { open, onClose, onLoad, onSaveAs, onNew, isDirty = false }: Props = $props();
 
 	// Save-as input
 	let saveAsName = $state('');
@@ -286,11 +287,12 @@
 	}
 
 	function handleNew() {
-		const hasNotes = true; // stage 4 adds dirty tracking; for now use grid-has-non-null-cells check via onNew being called
-		// Caller determines if confirmation needed; we always confirm per spec: "if the grid has any non-null cells"
-		// We don't have access to gridState here so we always show confirm.
-		// Stage 4 note: the spec says use grid non-null check as proxy. We show the confirm unconditionally for safety.
-		newConfirmOpen = true;
+		if (isDirty) {
+			newConfirmOpen = true;
+		} else {
+			onNew();
+			onClose();
+		}
 	}
 
 	function confirmNew() {
