@@ -1,4 +1,4 @@
-# CR1: pitch organisation
+# CR1: pitch organisation [IMPLEMENTED]
 There was an ambiguity in how the pitch structure was described which I think is related to both CR2 and CR3 following. Let me restate:
 
 ## Absolute vs Relative Pitch
@@ -17,12 +17,12 @@ The user can select
 In all of these the user needs to be able to switch the octave of the notes available for selection from the palette
 Where solfeggio is used, the names of the notes should be user-editable
 
-# CR1: octave note placement
+# CR1: octave note placement [IMPLEMENTED]
 There is a current bug where the octave indicator on the palette affects playback of all notes on the grid, rather than of the note being placed onto the grid. E.g. if a 'C' is placed onto the grid, it should be specified as C2, C3 etc.; or where a relative 'So' is placed in the grid it should be So_0 or So_1 or So_-1 depending on where it is relative to the base pitch currently in force. Thus you can have the same pitch class in the grid (multiple Cs, or multiple 'So' in solfeggio) but consistently playing different octaves.
 
 In the case of microtonal pitches, this could be shown by always displaying the cents/milles on the note - so e.g. 585 mille, 1585 mille, -415 mille would all refer to the same note reference to a base pitch at different octaves.
 
-# CR2: base pitch
+# CR2: base pitch [IMPLEMENTED]
 Where a base pitch is used (for relative pitches as opposed to absolute) then this should be a property always editable in the top of the screen (where the Solfa title and Compose/Play buttons sit) as opposed to being hidden within the palette - i.e. changing the base pitch essentially just transposes the song. Where a base pitch is specified as a note name, this can be as e.g. C2, Eb3 etc. It may be specified as Hz in the microtonal case.
 
 # CR4: separate palette octave from toolbar base pitch [IMPLEMENTED]
