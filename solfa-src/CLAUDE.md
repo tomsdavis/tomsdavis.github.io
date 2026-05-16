@@ -43,8 +43,8 @@ src/
       DragGhost.svelte             # Fixed-position ghost following pointer during drag
       FileBrowserDialog.svelte     # OPFS-backed file browser: tree view, save-as, open, inline rename, delete, copy/paste, new folder, new composition, import (.solfa.json), export (FSA/share/download)
       Grid.svelte                  # Renders GridRow list; scrollable container
-      GridCell.svelte              # Single cell; handles playback touch + drag source
-      GridRow.svelte               # Row of GridCells
+      GridCell.svelte              # Single cell; handles playback touch + drag source; drop-before visual (::before centred in gap)
+      GridRow.svelte               # Row of GridCells + eor-zone div (data-end-of-row) at end of each row
       ModeToggle.svelte            # Composition ↔ Playback button
       BasePitchControl.svelte      # Toolbar popover: octave/key/Hz (relative mode only)
       NoteDisplay.svelte           # Coloured pill with label; playing state = glow
@@ -62,7 +62,7 @@ src/
       drag-state.svelte.ts         # dragState — current DragOperation (source, x, y, dropTarget, voiceId)
       drop-handler-state.ts        # dropHandlerState — singleton callback set from +page.svelte
       file-system-state.svelte.ts  # fileSystemState — tree (FileNode), selectedPath, clipboard, currentPath, lastSavedJson; refresh() + markSaved() + clearCurrent()
-      grid-state.svelte.ts         # GridState class — flat GridCell[] array, row/col helpers
+      grid-state.svelte.ts         # GridState class — flat GridCell[] array, row/col helpers; trimTrailingRows(minRows)
       palette-state.svelte.ts      # paletteState — pitchSystem, mode, refMidi, paletteOctave, diatonicKey, entries[], CRUD, setPitchSystem, setDiatonicKey
       sw-update-state.svelte.ts    # swUpdateState — tracks SW updateAvailable; init() registers listeners, applyUpdate() posts SKIP_WAITING
       index.ts                     # re-exports
@@ -76,7 +76,7 @@ src/
     utils/
       colors.ts                    # noteColor(semitone) → CSS var
       drop-handler.ts              # handleDrop(op, gridState, refMidi, mode, pitchSystem, paletteOctave) — central drop logic
-      grid-operations.ts           # Pure functions: insertAndShift, moveNote, moveWithInsert
+      grid-operations.ts           # Pure functions: insertAndShift (MAX_ROWS guard), moveNote, moveWithInsert, trimTrailingEmptyRows
       note-names.ts                # chromaticName, chromaticSolfegeName, gridLabel, subscriptDigit, majorScaleNoteNames, majorScaleSemitones, keyRootSemitone, ALL_KEY_NAMES
       serialization.ts             # serialize/deserialize (v1, no migration); OPFS-backed saveNamed/loadNamed/listSaves/deleteNamed (async)
   routes/
@@ -97,14 +97,18 @@ src/
 ### Drag & Drop
 - **No pointer capture** — breaks `elementsFromPoint`. Use document-level `pointermove`/`pointerup` listeners instead.
 - `draggable.ts` action attaches to drag sources (palette entries, grid cells). On pointerdown it calls `dragState.startDrag`, adds document listeners, starts audio preview.
-- `droppable.ts` provides hit-test functions only (no Svelte action). `resolveDropTarget(x, y)` uses `elementsFromPoint` + `data-row`/`data-col` attributes on `.grid-cell` divs.
+- `droppable.ts` provides hit-test functions only (no Svelte action). `resolveDropTarget(x, y)` uses `elementsFromPoint` + `data-row`/`data-col` on `.grid-cell` divs, then `data-end-of-row` on `.eor-zone` divs, then falls back to `outside`.
 - Drop zone: left 20% of cell = insert-before, right 20% = insert-after, middle 60% = replace. Threshold is `DROP_ZONE_EDGE = 0.2` in constants.
+- **End-of-row zone**: each `GridRow` renders a `.eor-zone` div after the cells with `data-end-of-row={row}`. Hovering it emits `{ kind: 'end-of-row', row }`. The drop handler inserts at (row+1, 0), triggering `insertAndShift` to auto-expand the grid (capped at `MAX_ROWS`). After every drop and on load, `gridState.trimTrailingRows()` removes trailing empty rows down to `DEFAULT_ROWS`.
+- **Insert indicator**: `drop-before` and `drop-after` both resolve to a single `drop-before` visual on the right-hand cell (the `drop-after` case redirects via `dropHighlight` in `GridCell`). The indicator is a `::before` pseudo-element positioned at `left: calc(-1 * var(--cell-gap) / 2 - 1px)` — centred in the gap between cells.
 - `dropHandlerState` is a singleton callback registered directly in `+page.svelte`'s script block (not `onMount`); avoids prop-drilling the handler.
 
 ### Grid State
 - Flat `GridCell[]` array, row-major order. `GridCell = Note | null`.
 - `GridState` is a plain class with `cells: GridCell[] = $state([])`. Instantiated in `+page.svelte`, passed as prop to `Grid`.
-- Grid operations (`insertAndShift`, `moveNote`, `moveWithInsert`) are pure functions in `grid-operations.ts` that return new arrays.
+- Grid operations (`insertAndShift`, `moveNote`, `moveWithInsert`, `trimTrailingEmptyRows`) are pure functions in `grid-operations.ts` that return new arrays.
+- `insertAndShift` auto-appends a row when all cells are occupied, capped at `MAX_ROWS = 64` (returns cells unchanged if at cap).
+- `trimTrailingEmptyRows(cells, columns, minRows)` removes trailing all-null rows, never below `minRows`. `GridState.trimTrailingRows(minRows = DEFAULT_ROWS)` wraps it and is called after every drop and after load.
 
 ### Audio
 - **All sound is synthesised** — no samples. `AudioEngine.init()` creates a `PeriodicWave` once; `createVoice` instantiates an `OscillatorNode` per note.
@@ -164,10 +168,8 @@ All stores are singleton class instances exported as module-level constants (Sve
 
 From `detailed_requirements.md`:
 - **Grid column/row count configuration** (constants exist, no UI)
-- **Auto-expand grid** (no automatic row addition when insert overflows)
 - **Capacitor** mobile packaging
 - **Child-friendly visual theme** (monster characters etc.)
-- `end-of-row` drop target type exists in `drop-handler.ts` but `resolveDropTarget` never emits it — the `between/after` on the last cell implicitly covers it via the `insertCol >= columns` check.
 - **Mobile UX stages 2+** — stage 1 (toolbar icon buttons + 44–64 px cell clamp) is done; later stages TBD in `requirements/mobile-ux-handoff.md`.
 
 ## Notes / Gotchas

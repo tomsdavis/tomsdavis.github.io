@@ -1,5 +1,7 @@
 import type { Note } from '$lib/types/note.js';
 import type { GridCell } from '$lib/types/grid.js';
+import { trimTrailingEmptyRows } from '$lib/utils/grid-operations.js';
+import { DEFAULT_ROWS } from '$lib/constants.js';
 
 export class GridState {
 	columns: number;
@@ -45,6 +47,10 @@ export class GridState {
 		for (let i = 0; i < this.columns; i++) {
 			this.cells.push(null);
 		}
+	}
+
+	trimTrailingRows(minRows: number = DEFAULT_ROWS): void {
+		this.cells = trimTrailingEmptyRows(this.cells, this.columns, minRows);
 	}
 
 	clear(): void {

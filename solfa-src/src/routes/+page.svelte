@@ -23,6 +23,7 @@
 
 	dropHandlerState.setHandler((op) => {
 		handleDrop(op, gridState, paletteState.refMidi, paletteState.mode, paletteState.pitchSystem, paletteState.paletteOctave);
+		gridState.trimTrailingRows();
 	});
 
 	const currentJson = $derived(serializeAppState(
@@ -71,6 +72,7 @@
 
 	function handleLoad(state: SerializedAppState, path: string): void {
 		gridState.cells = state.grid.cells;
+		gridState.trimTrailingRows();
 		paletteState.entries = state.palette.entries;
 		paletteState.mode = state.palette.mode;
 		paletteState.refMidi = state.palette.refMidi;

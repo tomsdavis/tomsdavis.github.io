@@ -120,6 +120,38 @@ describe('GridState', () => {
 		});
 	});
 
+	describe('trimTrailingRows', () => {
+		it('collapses to minRows after removing last note', () => {
+			const note = makeNote('n1');
+			grid.placeNote(3, 0, note);
+			grid.removeNote(3, 0);
+
+			grid.trimTrailingRows(4);
+
+			expect(grid.rows).toBe(4);
+		});
+
+		it('removes extra empty rows added by insertAndShift', () => {
+			// Fill all 4 rows of 8 cols then add a row by force to simulate expansion
+			for (let col = 0; col < 8; col++) grid.placeNote(3, col, makeNote(`n${col}`));
+			grid.addRow(); // row 4 is empty
+			expect(grid.rows).toBe(5);
+
+			grid.trimTrailingRows(4);
+
+			expect(grid.rows).toBe(4);
+		});
+
+		it('does not collapse below minRows when all rows have notes', () => {
+			grid.placeNote(0, 0, makeNote('n1'));
+			grid.placeNote(3, 7, makeNote('n2'));
+
+			grid.trimTrailingRows(4);
+
+			expect(grid.rows).toBe(4);
+		});
+	});
+
 	describe('clear', () => {
 		it('clears all cells', () => {
 			grid.placeNote(0, 0, makeNote('n1'));

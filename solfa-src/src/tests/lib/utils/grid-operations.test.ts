@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	insertAndShift,
 	moveNote,
-	moveWithInsert
+	moveWithInsert,
+	trimTrailingEmptyRows
 } from '$lib/utils/grid-operations';
+import { MAX_ROWS } from '$lib/constants';
 import type { Note } from '$lib/types/note';
 import type { GridCell } from '$lib/types/grid';
 
@@ -157,6 +159,69 @@ describe('grid-operations', () => {
 			const result = moveNote(cells, columns, 0, 0, 1, 1);
 
 			expect(result).toEqual(cells);
+		});
+	});
+
+	it('does not expand grid beyond MAX_ROWS', () => {
+		const columns = 2;
+		// Build a MAX_ROWS-full grid
+		const cells: GridCell[] = new Array(columns * MAX_ROWS).fill(null);
+		for (let i = 0; i < cells.length; i++) cells[i] = makeNote(`n${i}`);
+
+		const result = insertAndShift(cells, columns, 0, 0, makeNote('new'));
+
+		expect(result.length).toBe(columns * MAX_ROWS);
+		expect(result[0]?.id).toBe('n0');
+	});
+
+	describe('trimTrailingEmptyRows', () => {
+		it('removes empty trailing rows', () => {
+			const columns = 2;
+			const cells = makeCells(columns, 3);
+			placeAt(cells, columns, 0, 0, makeNote('n1'));
+
+			const result = trimTrailingEmptyRows(cells, columns, 1);
+
+			expect(result.length).toBe(columns * 1);
+		});
+
+		it('never goes below minRows', () => {
+			const columns = 2;
+			const cells = makeCells(columns, 3);
+
+			const result = trimTrailingEmptyRows(cells, columns, 2);
+
+			expect(result.length).toBe(columns * 2);
+		});
+
+		it('leaves rows that contain notes', () => {
+			const columns = 2;
+			const cells = makeCells(columns, 3);
+			placeAt(cells, columns, 1, 0, makeNote('n1'));
+
+			const result = trimTrailingEmptyRows(cells, columns, 1);
+
+			expect(result.length).toBe(columns * 2);
+			expect(result[columns]?.id).toBe('n1');
+		});
+
+		it('removes multiple trailing empty rows', () => {
+			const columns = 2;
+			const cells = makeCells(columns, 5);
+			placeAt(cells, columns, 0, 1, makeNote('n1'));
+
+			const result = trimTrailingEmptyRows(cells, columns, 1);
+
+			expect(result.length).toBe(columns * 1);
+		});
+
+		it('leaves grid unchanged when already at minRows', () => {
+			const columns = 2;
+			const cells = makeCells(columns, 2);
+
+			const result = trimTrailingEmptyRows(cells, columns, 2);
+
+			expect(result.length).toBe(columns * 2);
 		});
 	});
 

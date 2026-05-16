@@ -1,5 +1,6 @@
 import type { Note } from '$lib/types/note.js';
 import type { GridCell } from '$lib/types/grid.js';
+import { MAX_ROWS } from '$lib/constants.js';
 
 /**
  * Insert a note at a position in the flat cell array and shift subsequent
@@ -34,6 +35,7 @@ export function insertAndShift(
 	}
 
 	if (emptyIndex === -1) {
+		if (cells.length / columns >= MAX_ROWS) return cells;
 		// No empty cell found — extend the grid with a new row
 		for (let i = 0; i < columns; i++) {
 			result.push(null);
@@ -82,6 +84,22 @@ export function moveNote(
 	result[fromIndex] = null;
 
 	return result;
+}
+
+/**
+ * Remove trailing empty rows, never going below minRows.
+ * Returns a new cells array.
+ */
+export function trimTrailingEmptyRows(
+	cells: GridCell[],
+	columns: number,
+	minRows: number
+): GridCell[] {
+	let rows = cells.length / columns;
+	while (rows > minRows && cells.slice((rows - 1) * columns).every((c) => c === null)) {
+		rows--;
+	}
+	return cells.slice(0, rows * columns);
 }
 
 /**

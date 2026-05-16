@@ -48,13 +48,22 @@ export function findCellAtPoint(
 	return null;
 }
 
+function findEndOfRowAtPoint(x: number, y: number): { row: number } | null {
+	for (const el of document.elementsFromPoint(x, y)) {
+		if (el instanceof HTMLElement && el.dataset.endOfRow !== undefined) {
+			return { row: parseInt(el.dataset.endOfRow, 10) };
+		}
+	}
+	return null;
+}
+
 /**
  * Determine the full drop target at a given pointer position.
  */
 export function resolveDropTarget(x: number, y: number): DropTarget {
 	const cell = findCellAtPoint(x, y);
-	if (!cell) {
-		return { kind: 'outside' };
-	}
-	return hitTestCell(cell.element, x, { row: cell.row, col: cell.col });
+	if (cell) return hitTestCell(cell.element, x, { row: cell.row, col: cell.col });
+	const eor = findEndOfRowAtPoint(x, y);
+	if (eor) return { kind: 'end-of-row', row: eor.row };
+	return { kind: 'outside' };
 }

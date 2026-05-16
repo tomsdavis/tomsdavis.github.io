@@ -3,7 +3,7 @@ import { handleDrop } from '$lib/utils/drop-handler';
 import { GridState } from '$lib/stores/grid-state.svelte';
 import type { DragOperation } from '$lib/stores/drag-state.svelte';
 import type { Note } from '$lib/types/note';
-import { C0_MIDI } from '$lib/constants';
+import { C0_MIDI, MAX_ROWS } from '$lib/constants';
 
 function makeGridState(cols = 4, rows = 2): GridState {
 	return new GridState(cols, rows);
@@ -123,6 +123,70 @@ describe('handleDrop', () => {
 			handleDrop(op, gs, C0_MIDI, 'diatonic', 'absolute', 4);
 			const cell = gs.cells[0]!;
 			expect(cell.label).toBe('Gb4');
+		});
+	});
+
+	describe('end-of-row drops', () => {
+		function makeEorPaletteDrop(row: number): DragOperation {
+			return {
+				source: {
+					kind: 'palette',
+					entryId: 'test-entry',
+					pitch: { kind: 'semitone', semitones: 0 },
+					label: 'Do',
+					color: '#e74c3c'
+				},
+				x: 0,
+				y: 0,
+				dropTarget: { kind: 'end-of-row', row },
+				voiceId: null
+			};
+		}
+
+		it('palette → end-of-row: note placed at (row+1, 0)', () => {
+			const gs = makeGridState(4, 2);
+			const op = makeEorPaletteDrop(0);
+			handleDrop(op, gs, 60, 'diatonic', 'relative', 0);
+
+			expect(gs.cells[4]).not.toBeNull(); // row 1, col 0
+		});
+
+		it('palette → end-of-row on last row: grid auto-extends', () => {
+			const gs = makeGridState(4, 2);
+			const before = gs.cells.length;
+			const op = makeEorPaletteDrop(1); // last row index is 1
+			handleDrop(op, gs, 60, 'diatonic', 'relative', 0);
+
+			expect(gs.cells.length).toBe(before + 4);
+		});
+
+		it('grid → end-of-row: note moved to (row+1, 0) with insert-and-shift', () => {
+			const gs = makeGridState(4, 2);
+			const note = makeGridNote(60, 0, 0);
+			gs.placeNote(0, 0, note);
+
+			const op: DragOperation = {
+				source: { kind: 'grid', position: { row: 0, col: 0 }, note },
+				x: 0,
+				y: 0,
+				dropTarget: { kind: 'end-of-row', row: 0 },
+				voiceId: null
+			};
+			handleDrop(op, gs, 60, 'diatonic', 'relative', 0);
+
+			expect(gs.cells[0]).toBeNull();
+			expect(gs.cells[4]).not.toBeNull();
+		});
+
+		it('end-of-row on MAX_ROWS grid: grid does NOT extend', () => {
+			const cols = 2;
+			const gs = new GridState(cols, MAX_ROWS);
+			for (let i = 0; i < gs.cells.length; i++) gs.cells[i] = makeGridNote(60);
+
+			const op = makeEorPaletteDrop(MAX_ROWS - 1);
+			handleDrop(op, gs, 60, 'diatonic', 'relative', 0);
+
+			expect(gs.cells.length).toBe(cols * MAX_ROWS);
 		});
 	});
 

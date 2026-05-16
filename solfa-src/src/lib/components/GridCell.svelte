@@ -27,8 +27,11 @@
 		if (dt.kind === 'cell' && dt.position.row === row && dt.position.col === col) {
 			return 'replace';
 		}
-		if (dt.kind === 'between' && dt.position.row === row && dt.position.col === col) {
-			return dt.side;
+		if (dt.kind === 'between' && dt.position.row === row) {
+			// "before this col" — primary case
+			if (dt.position.col === col && dt.side === 'before') return 'before';
+			// "after col-1" — redirect to show insert indicator on this (right) cell
+			if (dt.position.col === col - 1 && dt.side === 'after') return 'before';
 		}
 		return 'none';
 	});
@@ -82,7 +85,6 @@
 	class:playback-mode={appState.mode === 'playback' && cell !== null}
 	class:drop-replace={dropHighlight === 'replace'}
 	class:drop-before={dropHighlight === 'before'}
-	class:drop-after={dropHighlight === 'after'}
 	data-row={row}
 	data-col={col}
 	role={appState.mode === 'playback' && cell ? 'button' : undefined}
@@ -106,6 +108,7 @@
 
 <style>
 	.grid-cell {
+		position: relative;
 		width: var(--cell-size);
 		height: var(--cell-size);
 		border-radius: var(--cell-radius);
@@ -130,11 +133,14 @@
 		border-color: var(--accent);
 	}
 
-	.grid-cell.drop-before {
-		border-left: 3px solid var(--accent);
-	}
-
-	.grid-cell.drop-after {
-		border-right: 3px solid var(--accent);
+	.grid-cell.drop-before::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: calc(-1 * var(--cell-gap) / 2 - 1px);
+		width: 2px;
+		background: var(--accent);
+		border-radius: 1px;
 	}
 </style>
