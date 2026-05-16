@@ -36,9 +36,12 @@
 		paletteState.diatonicKey
 	));
 
+	const hasNotes = $derived(gridState.cells.some(c => c !== null));
+
 	const isDirty = $derived(
-		fileSystemState.currentPath !== null &&
-		currentJson !== fileSystemState.lastSavedJson
+		fileSystemState.currentPath !== null
+			? currentJson !== fileSystemState.lastSavedJson
+			: hasNotes
 	);
 
 	const canSave = $derived(isDirty);
@@ -51,7 +54,10 @@
 
 	async function handleSave(): Promise<void> {
 		const path = fileSystemState.currentPath;
-		if (!path) return;
+		if (!path) {
+			showFiles = true;
+			return;
+		}
 		const json = currentJson;
 		await writeFile(path, json);
 		fileSystemState.markSaved(json, path);
