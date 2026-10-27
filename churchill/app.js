@@ -646,6 +646,7 @@ const boot = async () => {
   } else {
     startGame(1, 'closed');
   }
+  window.churchillBooted = true;
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 };
 

@@ -38,6 +38,10 @@ code lives in the `churchill` repo (private).
 - Game state lives in the core, which also keeps the take-back history.
   The UI keeps a game record (seed, variant, move list, events); on
   reopening the app it replays the record's move list through the core.
+- Service worker: network first (bypassing the HTTP cache), cache only as
+  the offline fallback, so the app's files always come from one version.
+  If app.js fails to start, the page offers Repair (clears the cached
+  files, keeps saved games).
 - Files: `index.html`, `style.css`, `app.js` (UI, storage, solver worker),
   `play.js` (pure game-flow helpers), `core.js` (core wrapper, card and
   move helpers, stock projection), `solver-worker.js`, `sw.js`,

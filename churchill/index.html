@@ -132,6 +132,36 @@
       </div>
     </div>
   </div>
+  <div class="sheet" id="bootFail" hidden>
+    <div class="in">
+      <h2>The app didn't start</h2>
+      <p class="note" id="bootErr">This can happen just after an update, when old and new files get mixed.</p>
+      <p class="note">Repair clears the app's cached files and reloads. Your game in progress and history are kept.</p>
+      <div class="row"><button id="repairBtn" type="button">Repair</button><button type="button" onclick="location.reload()">Reload</button></div>
+    </div>
+  </div>
+  <script>
+    // If app.js fails to load (an error before it finishes booting, or no
+    // boot within 8 s), offer a repair instead of a dead screen.
+    (() => {
+      const fail = (msg) => {
+        if (window.churchillBooted) return;
+        if (msg) document.getElementById('bootErr').textContent = msg;
+        document.getElementById('bootFail').hidden = false;
+      };
+      addEventListener('error', (e) => fail(e.message));
+      addEventListener('unhandledrejection', (e) => fail(String(e.reason && e.reason.message || e.reason)));
+      setTimeout(() => fail(), 8000);
+      document.getElementById('repairBtn').onclick = async () => {
+        try {
+          const regs = await navigator.serviceWorker?.getRegistrations() ?? [];
+          await Promise.all(regs.map((r) => r.unregister()));
+          await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+        } catch (e) { /* reload anyway */ }
+        location.reload();
+      };
+    })();
+  </script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
