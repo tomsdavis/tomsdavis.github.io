@@ -48,7 +48,7 @@ body {
 .landscape .bar .solv { order: 3; }
 .landscape .bar .spacer { order: 4; }
 .landscape .bar .undo, .landscape .bar #menuBtn { order: 5; }
-.seed { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.seed { flex: none; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .chip { white-space: nowrap; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-dim); border: 1px solid var(--felt-line); border-radius: 99px; padding: 2px 7px; }
 .chip.sw { border-color: var(--target); }
 button { font: inherit; color: inherit; background: none; border: 1px solid var(--felt-line); border-radius: 8px; padding: 5px 9px; cursor: pointer; }
@@ -72,6 +72,7 @@ button:disabled { opacity: .4; cursor: default; }
 }
 .card.red { color: var(--red); }
 .card .idx { position: absolute; left: calc(var(--cw) * .07); top: 0; font-size: calc(var(--cw) * .4); line-height: 1.1; letter-spacing: -.06em; white-space: nowrap; }
+.card.stack .idx { text-align: center; width: calc(var(--cw) * .56); left: 0; line-height: 1.05; letter-spacing: -.08em; }
 .card .pip { position: absolute; right: calc(var(--cw) * .08); bottom: 1px; font-size: calc(var(--cw) * .55); line-height: 1; }
 .card.down { background: repeating-linear-gradient(45deg, var(--back) 0 3px, var(--back-line) 3px 5px); }
 .card.down > * { display: none; }
@@ -99,7 +100,9 @@ button:disabled { opacity: .4; cursor: default; }
 .stockslot { display: none; width: var(--cw); flex: none; }
 .landscape .stockslot { display: block; }
 .status { flex: 1; font-size: 12px; color: var(--ink-dim); line-height: 1.35; padding-top: 2px; font-variant-numeric: tabular-nums; }
-.landscape .status { flex: 1 0 100%; order: 3; }
+.landscape .devil { order: 1; }
+.landscape .stockslot { order: 2; }
+.landscape .status { flex: 1 1 0; order: 3; padding-top: 4px; }
 .status b { color: var(--ink); font-weight: 500; }
 .devil { position: relative; height: calc(var(--cw) * 1.4); flex: none; }
 

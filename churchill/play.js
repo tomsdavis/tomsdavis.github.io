@@ -65,6 +65,8 @@ export const tableauNeed = (pos, cw) =>
 
 export const VARIANTS = ['closed', 'classic', 'natural'];
 export const VARIANT_NAME = { closed: 'Closed', classic: 'Open classic', natural: 'Open natural' };
+// Short names for the top bar, where space is tight on a phone.
+export const VARIANT_SHORT = { closed: 'Closed', classic: 'Open', natural: 'Natural' };
 
 // A record of one game: everything needed to replay it and to study it later.
 export const newRecord = ({ seed, variant, attempt = 1, restartOf = null, now = Date.now() }) => ({

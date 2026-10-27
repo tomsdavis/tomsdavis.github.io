@@ -3,7 +3,7 @@
 import { loadCore, landing, rank, suit, isRed, rankText, GLYPH, SUITS, validSeed } from './core.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
-  VARIANT_NAME, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
+  VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
 } from './play.js';
 
 // ============= Storage =============
@@ -166,6 +166,10 @@ const findWinnable = async (variant) => {
 const cardEl = (c, extra = '') =>
   el('div', `card ${isRed(c) ? 'red' : ''} ${extra}`,
     `<span class="idx">${rankText(c)}${GLYPH[suit(c)]}</span><span class="pip">${GLYPH[suit(c)]}</span>`);
+// Rank above suit, for cards that overlap sideways (the Devil's Six).
+const stackedCardEl = (c, extra = '') =>
+  el('div', `card stack ${isRed(c) ? 'red' : ''} ${extra}`,
+    `<span class="idx">${rankText(c)}<br>${GLYPH[suit(c)]}</span><span class="pip">${GLYPH[suit(c)]}</span>`);
 
 // Foundation slots shown in this suit order, alternating colours.
 const SLOT_ORDER = ['s', 's', 'h', 'h', 'c', 'c', 'd', 'd'];
@@ -190,7 +194,7 @@ const applyLayout = () => {
   return landscape;
 };
 
-const SOLV_TEXT = { busy: 'Checking', winnable: 'Winnable', lost: 'Not winnable', unknown: 'Unknown' };
+const SOLV_TEXT = { busy: 'Checking', winnable: 'Winnable', lost: 'Lost', unknown: 'Unknown' };
 
 function render() {
   const land = applyLayout();
@@ -198,8 +202,10 @@ function render() {
   const tg = targetsFor(sel, legal, pos);
 
   // top bar
-  $('seedLbl').textContent = `Seed ${rec.seed}`;
-  $('varLbl').textContent = VARIANT_NAME[rec.variant];
+  $('seedLbl').textContent = `#${rec.seed}`;
+  $('seedLbl').title = `Seed ${rec.seed}`;
+  $('varLbl').textContent = VARIANT_SHORT[rec.variant];
+  $('varLbl').title = VARIANT_NAME[rec.variant];
   $('varLbl').classList.toggle('sw', !!rec.switched);
   const sv = $('solv');
   const shown = settings.solv === 'known' || (settings.solv === 'request' && rec.solv?.shownAtMove != null) || rec.result;
@@ -239,11 +245,12 @@ function render() {
   const dv = $('devil');
   dv.replaceChildren();
   const devilLeft = lay.devil.slice(pos.devilNext);
-  const step = cw * (land ? 0.38 : 0.5);
+  // Spread the Devil's Six over four card widths (a full row in landscape).
+  const step = cw * 0.6;
   dv.style.width = devilLeft.length ? `${cw + step * (devilLeft.length - 1)}px` : '0';
   devilLeft.slice().reverse().forEach((c, k) => {
     const isNext = k === devilLeft.length - 1;
-    const e = cardEl(c, isNext && sel?.devil ? 'sel' : '');
+    const e = stackedCardEl(c, isNext && sel?.devil ? 'sel' : '');
     e.style.left = `${k * step}px`;
     if (isNext) e.onclick = () => {
       if (sel?.devil) { sel = null; render(); return; }
