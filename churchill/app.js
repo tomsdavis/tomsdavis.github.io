@@ -4,7 +4,7 @@ import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, GLYPH, 
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
-  withHint, withCheck, withAssist, winResult,
+  withHint, withCheck, withAssist, winResult, withPlaybackBack,
 } from './play.js';
 
 // ============= Storage =============
@@ -291,6 +291,16 @@ const stepAuto = () => {
   render();
 };
 
+// Take the solver's last move back (playback paused); not a take-back.
+const stepBackAuto = () => {
+  if (core.undo() < 0) return;
+  rec = withPlaybackBack(rec);
+  auto.i--;
+  refresh();
+  persist();
+  render();
+};
+
 const stopAuto = () => {
   if (!auto) return;
   clearTimeout(auto.timer);
@@ -435,6 +445,7 @@ function render() {
   if (auto) {
     $('autoPause').textContent = auto.paused ? 'Play' : 'Pause';
     $('autoStep').disabled = !auto.paused;
+    $('autoBack').disabled = !auto.paused || auto.i === 0;
     press('speedSeg', 'sp', settings.speed);
   }
 
@@ -601,6 +612,7 @@ const wire = () => {
   $('speedSeg2').onclick = setSpeed;
   $('autoPause').onclick = () => { if (!auto) return; auto.paused = !auto.paused; scheduleAuto(); render(); };
   $('autoStep').onclick = () => { if (auto?.paused) stepAuto(); };
+  $('autoBack').onclick = () => { if (auto?.paused && auto.i > 0) stepBackAuto(); };
   $('autoStop').onclick = () => { stopAuto(); toast('Solver stopped. Carry on by hand; a win now counts as solved.'); };
   $('exportBtn').onclick = exportHistory;
   $('clearBtn').onclick = () => {

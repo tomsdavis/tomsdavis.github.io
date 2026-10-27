@@ -109,6 +109,17 @@ export const withUndo = (rec, cost) => {
   };
 };
 
+// Stepping back through the solver's playback: the move comes off the
+// board but is not a take-back (no count), and the move count goes back
+// with it, since the solver will play it again.
+export const withPlaybackBack = (rec) => {
+  const line = rec.line.slice(0, -1);
+  return {
+    ...rec, line, events: [...rec.events, ['b']], moves: rec.moves - 1,
+    switchAt: rec.switchAt === null ? null : Math.min(rec.switchAt, line.length),
+  };
+};
+
 export const withSwitch = (rec, to) => ({
   ...rec,
   variant: to,

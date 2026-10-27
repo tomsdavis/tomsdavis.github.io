@@ -7,7 +7,7 @@ import {
 } from './core.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
-  newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult,
+  newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -227,6 +227,13 @@ describe('Help from the solver', () => {
     rec = withAssist(withAssist(rec));
     assertEqual(rec.assisted.atMove, 1);
     assertEqual(winResult(rec), 'solved');
+  });
+  test('stepping back through playback is not a take-back', () => {
+    let rec = withMove(withMove(newRecord({ seed: 1, variant: 'closed', now: 0 }), 2), 2);
+    rec = withPlaybackBack(rec);
+    assertEqual(rec.line.length, 1);
+    assertEqual(rec.moves, 1);
+    assertEqual(rec.used, 0);
   });
 });
 
