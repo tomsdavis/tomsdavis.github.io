@@ -1,0 +1,424 @@
+// Churchill Solitaire: UI, persistence and the solver worker.
+
+import { loadCore, landing, rank, suit, isRed, rankText, GLYPH, SUITS, validSeed } from './core.js';
+import {
+  targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
+  VARIANT_NAME, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
+} from './play.js';
+
+// ============= Storage =============
+
+const KEYS = { current: 'churchill.current', records: 'churchill.records', settings: 'churchill.settings' };
+const load = (key, fallback) => {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+};
+const save = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ }
+};
+// Finished games, newest last (version 1 stores them; showing them comes later).
+const archive = (rec) => save(KEYS.records, [...load(KEYS.records, []), rec]);
+
+// ============= State =============
+
+let core;
+let rec; // the game record (see play.js)
+let pos, lay, legal; // core position, deal and legal moves
+let sel = null;
+let settings = { layout: 'auto', solv: 'known', winnableOnly: false, ...load(KEYS.settings, {}) };
+let solv = { state: 'busy', key: null }; // solvability of the current deal and rules
+let collapsed = false;
+let prevLanding = new Map();
+let newVariant = 'closed';
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, html) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  return e;
+};
+const isOpen = () => rec.variant !== 'closed';
+const usesNatural = () => rec.variant === 'natural';
+
+const refresh = () => {
+  pos = core.position();
+  legal = core.legalMoves();
+};
+
+let toastTimer;
+const toast = (msg) => {
+  document.querySelector('.toast')?.remove();
+  const t = el('div', 'toast', msg);
+  $('frame').append(t);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), 2200);
+};
+
+// ============= Solver worker =============
+
+let worker = null, jobId = 0, jobTimer = null;
+const SOLVE_LIMIT = 1_000_000, SOLVE_TRIES = 5000, SOLVE_MS = 30_000;
+
+const askSolver = (seed, natural, limit, tries, ms) => new Promise((resolve) => {
+  if (!worker) worker = new Worker('solver-worker.js', { type: 'module' });
+  const id = ++jobId;
+  clearTimeout(jobTimer);
+  jobTimer = setTimeout(() => {
+    // Out of time: stop the worker; a fresh one starts with the next job.
+    worker.terminate();
+    worker = null;
+    resolve({ id, result: 'unknown' });
+  }, ms);
+  worker.onmessage = ({ data }) => {
+    if (data.id !== id) return;
+    clearTimeout(jobTimer);
+    resolve(data);
+  };
+  worker.postMessage({ id, seed, natural, limit, tries });
+});
+
+const checkSolvable = async () => {
+  const key = `${rec.seed}/${usesNatural() ? 'n' : 'c'}`;
+  if (solv.key === key) return;
+  solv = { state: 'busy', key };
+  render();
+  const { result } = await askSolver(rec.seed, usesNatural(), SOLVE_LIMIT, SOLVE_TRIES, SOLVE_MS);
+  if (solv.key !== key) return;
+  solv = { state: result, key };
+  rec = { ...rec, solv: { result, shownAtMove: rec.solv?.shownAtMove ?? (settings.solv === 'known' ? rec.moves : null) } };
+  persist();
+  render();
+};
+
+// ============= Game flow =============
+
+const persist = () => save(KEYS.current, rec);
+
+const startGame = (seed, variant, extra = {}) => {
+  if (rec && !rec.result && rec.moves > 0) archive(withEnd(rec, 'abandoned'));
+  rec = newRecord({ seed, variant, ...extra });
+  core.newGame(seed, variant === 'natural');
+  lay = core.layout();
+  sel = null;
+  prevLanding = new Map();
+  refresh();
+  persist();
+  render();
+  checkSolvable();
+};
+
+const finish = (result) => {
+  rec = withEnd(rec, result);
+  archive(rec);
+  persist();
+  showEnd(result);
+};
+
+const playCode = (code) => {
+  if (core.play(code) < 0) return;
+  rec = withMove(rec, code);
+  sel = null;
+  refresh();
+  persist();
+  render();
+  if (pos.won) finish('won');
+  else if (legal.length === 0) finish('stuck');
+};
+
+const takeBack = () => {
+  if (rec.result) return;
+  const cost = core.undo();
+  if (cost < 0) return;
+  rec = withUndo(rec, cost);
+  sel = null;
+  refresh();
+  persist();
+  render();
+};
+
+const switchTo = (variant) => {
+  if (rec.variant !== 'closed' || rec.result) return;
+  rec = withSwitch(rec, variant);
+  if (variant === 'natural') core.switchNatural();
+  sel = null;
+  refresh();
+  persist();
+  render();
+  toast(`Switched to ${VARIANT_NAME[variant]} (recorded)`);
+  checkSolvable();
+};
+
+const randomSeed = () => 1 + Math.floor(Math.random() * 1_000_000_000);
+
+const findWinnable = async (variant) => {
+  toast('Looking for a winnable deal');
+  for (let i = 0; i < 25; i++) {
+    const seed = randomSeed();
+    const { result } = await askSolver(seed, variant === 'natural', 200_000, 1000, 8000);
+    if (result === 'winnable') return seed;
+  }
+  toast('No winnable deal found quickly; dealing a random one');
+  return randomSeed();
+};
+
+// ============= Rendering =============
+
+const cardEl = (c, extra = '') =>
+  el('div', `card ${isRed(c) ? 'red' : ''} ${extra}`,
+    `<span class="idx">${rankText(c)}${GLYPH[suit(c)]}</span><span class="pip">${GLYPH[suit(c)]}</span>`);
+
+// Foundation slots shown in this suit order, alternating colours.
+const SLOT_ORDER = ['s', 's', 'h', 'h', 'c', 'c', 'd', 'd'];
+const slotHeight = (i) => {
+  const s = SUITS.indexOf(SLOT_ORDER[i]);
+  return pos.found[s][i % 2];
+};
+
+let cw = 36;
+const applyLayout = () => {
+  const f = $('frame');
+  // The space inside the body's safe-area padding, not the frame (whose
+  // size depends on the layout chosen).
+  const cs = getComputedStyle(document.body);
+  const W = document.body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const H = document.body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const { landscape, cw: w } = chooseLayout(Math.min(W, 1500), Math.min(H, 1000), settings.layout);
+  f.classList.toggle('landscape', landscape);
+  f.classList.toggle('portrait', !landscape);
+  cw = w;
+  f.style.setProperty('--cw', `${cw}px`);
+  return landscape;
+};
+
+const SOLV_TEXT = { busy: 'Checking', winnable: 'Winnable', lost: 'Not winnable', unknown: 'Unknown' };
+
+function render() {
+  const land = applyLayout();
+  const open = isOpen();
+  const tg = targetsFor(sel, legal, pos);
+
+  // top bar
+  $('seedLbl').textContent = `Seed ${rec.seed}`;
+  $('varLbl').textContent = VARIANT_NAME[rec.variant];
+  $('varLbl').classList.toggle('sw', !!rec.switched);
+  const sv = $('solv');
+  const shown = settings.solv === 'known' || (settings.solv === 'request' && rec.solv?.shownAtMove != null) || rec.result;
+  sv.hidden = settings.solv === 'never' && !rec.result;
+  sv.className = `solv ${solv.state}`;
+  sv.textContent = shown ? SOLV_TEXT[solv.state] : 'Winnable?';
+  sv.title = 'Whether the deal can be won with every card known';
+  const nextCost = core.undoCost();
+  $('undo').disabled = nextCost < 0 || !!rec.result;
+  $('undo').classList.toggle('costly', nextCost > 0);
+  $('undo').setAttribute('aria-label', `Take back (${nextCost < 0 ? 'nothing to take back' : nextCost ? `counts ${nextCost}` : 'free'}), ${rec.used} used`);
+  $('undoCount').textContent = rec.used;
+
+  // foundations and stock
+  const top = $('top');
+  top.replaceChildren();
+  const foundSlot = tg.found === null ? -1 : sel.devil ? slotFor(pos, lay.devil[pos.devilNext]) : slotFor(pos, pos.piles[sel.pile].cards[sel.index]);
+  // slotFor numbers slots in SUITS order; map to display order
+  const hitSlot = foundSlot < 0 ? -1 : SLOT_ORDER.findIndex((s, i) => s === SUITS[foundSlot >> 1] && i % 2 === foundSlot % 2);
+  SLOT_ORDER.forEach((s, i) => {
+    const cell = el('div', 'cell');
+    const h = slotHeight(i), hit = i === hitSlot;
+    const e = h ? cardEl(h | (SUITS.indexOf(s) << 4), hit ? 'target' : '') : el('div', `slot ${hit ? 'target' : ''}`, GLYPH[s]);
+    e.onclick = () => { if (hit) playCode(tg.found); };
+    cell.append(e);
+    top.append(cell);
+  });
+  const left = lay.stock.length - pos.stockNext;
+  const sb = el('button', 'stockbtn', left ? `<b>${left}</b><span>Deal</span>` : '<span>Empty</span>');
+  sb.disabled = !left || !!rec.result;
+  sb.setAttribute('aria-label', `Deal, ${left} cards left`);
+  sb.onclick = () => { sel = null; playCode(2); };
+  if (land) $('stockslot').replaceChildren(sb);
+  else { $('stockslot').replaceChildren(); top.append(sb); }
+
+  // Devil's Six, next card at the right-hand end
+  const dv = $('devil');
+  dv.replaceChildren();
+  const devilLeft = lay.devil.slice(pos.devilNext);
+  const step = cw * (land ? 0.38 : 0.5);
+  dv.style.width = devilLeft.length ? `${cw + step * (devilLeft.length - 1)}px` : '0';
+  devilLeft.slice().reverse().forEach((c, k) => {
+    const isNext = k === devilLeft.length - 1;
+    const e = cardEl(c, isNext && sel?.devil ? 'sel' : '');
+    e.style.left = `${k * step}px`;
+    if (isNext) e.onclick = () => {
+      if (sel?.devil) { sel = null; render(); return; }
+      if (!legal.includes(3)) { toast("No foundation takes the next Devil's Six card yet"); return; }
+      sel = { devil: true };
+      render();
+    };
+    dv.append(e);
+  });
+  const up = pos.found.flat().reduce((a, b) => a + b, 0);
+  $('status').innerHTML = `Moves <b>${rec.moves}</b><br>Up <b>${up}</b> / 104<br>Devil's Six left <b>${devilLeft.length}</b>`;
+
+  // the stock panel gets whatever height the tableau does not need
+  $('panel').hidden = !open;
+  if (open) {
+    const fixed = land ? 6 : [...document.querySelectorAll('.bar, .top, .devilrow')].reduce((a, e) => a + e.offsetHeight, 0);
+    const avail = $('frame').clientHeight - fixed;
+    $('panel').style.maxHeight = `${Math.max(cw * 3.2, avail - tableauNeed(pos, cw))}px`;
+  }
+
+  // tableau
+  const tab = $('tableau');
+  tab.replaceChildren();
+  const H = tab.clientHeight;
+  pos.piles.forEach((pile, p) => {
+    const col = el('div', 'col');
+    const hitPile = tg.piles.has(p);
+    const moveHere = () => playCode(tg.piles.get(p));
+    if (!pile.cards.length) {
+      const s = el('div', `slot ${hitPile ? 'target' : ''}`, '');
+      s.onclick = (ev) => { ev.stopPropagation(); if (hitPile) moveHere(); else if (sel) { sel = null; render(); } };
+      col.append(s);
+    }
+    const offs = pileOffsets(pile, open, cw, H);
+    pile.cards.forEach((c, i) => {
+      const down = i < pile.down;
+      const isSel = sel && !sel.devil && sel.pile === p && i >= sel.index;
+      const cls = down ? (open ? 'off' : 'down') : '';
+      const e = cardEl(c, `${cls} ${isSel ? 'sel' : ''} ${hitPile && i === pile.cards.length - 1 ? 'target' : ''}`);
+      e.style.top = `${offs[i]}px`;
+      e.onclick = (ev) => {
+        ev.stopPropagation();
+        if (rec.result) return;
+        if (hitPile) { moveHere(); return; }
+        if (sel && !sel.devil && sel.pile === p && sel.index === i) { sel = null; render(); return; }
+        if (canPick(pos, p, i)) { sel = { pile: p, index: i }; render(); }
+        else if (sel) { sel = null; render(); }
+      };
+      col.append(e);
+    });
+    col.onclick = () => { if (sel) { sel = null; render(); } };
+    tab.append(col);
+  });
+
+  // stock panel (open games)
+  $('panel').classList.toggle('collapsed', collapsed);
+  $('ptog').textContent = collapsed ? 'Show' : 'Hide';
+  if (open) {
+    const land2 = landing(pos, lay);
+    const deals = land2.length ? land2[land2.length - 1].row + 1 : 0;
+    const skips = pos.piles.map((p) => p.kingHeaded);
+    const ns = skips.filter(Boolean).length;
+    $('pinfo').innerHTML = left
+      ? `${left} cards &middot; ${deals} deal${deals === 1 ? '' : 's'}${ns ? ` &middot; ${ns} pile${ns > 1 ? 's' : ''} skipped` : ''}`
+      : 'empty';
+    const rows = $('rows');
+    const scroll = rows.scrollTop;
+    rows.replaceChildren();
+    for (let r = 0; r < deals; r++) {
+      if (r === 1) rows.append(el('div', 'rowtag', 'Later deals'));
+      const row = el('div', `cols prow ${r === 0 ? 'next' : ''}`);
+      for (let p = 0; p < 10; p++) {
+        const hit = land2.find((x) => x.row === r && x.col === p);
+        if (!hit) { row.append(el('div', `c ${skips[p] ? 'skip' : 'none'}`)); continue; }
+        const moved = prevLanding.has(hit.index) && prevLanding.get(hit.index) !== p;
+        const t = `${rankText(hit.card)}${r === 0 ? '<br>' : ''}${GLYPH[suit(hit.card)]}`;
+        row.append(el('div', `c ${isRed(hit.card) ? 'red' : ''} ${moved ? 'flash' : ''}`, t));
+      }
+      rows.append(row);
+    }
+    rows.scrollTop = scroll;
+    prevLanding = new Map(land2.map((x) => [x.index, x.col]));
+  }
+}
+
+// ============= Sheets =============
+
+const showEnd = (result) => {
+  const msg = {
+    won: 'Won!',
+    stuck: 'No moves left.',
+    resigned: 'Resigned.',
+  }[result];
+  $('endTitle').textContent = msg;
+  $('endStats').textContent = `Seed ${rec.seed}, ${VARIANT_NAME[rec.variant]}${rec.switched ? ' (switched)' : ''}: ${rec.moves} moves, ${rec.used} take-back${rec.used === 1 ? '' : 's'}. Solver: ${SOLV_TEXT[solv.state].toLowerCase()}.`;
+  $('endSheet').hidden = false;
+  render();
+};
+
+const openMenu = () => {
+  $('seedIn').value = rec.seed;
+  $('switchRow').hidden = rec.variant !== 'closed' || !!rec.result;
+  $('resign').disabled = !!rec.result;
+  newVariant = rec.variant;
+  press('newVar', 'v', newVariant);
+  press('layoutSeg', 'l', settings.layout);
+  press('solvSeg', 's', settings.solv);
+  $('winOnly').checked = settings.winnableOnly;
+  $('sheet').hidden = false;
+};
+const closeMenu = () => { $('sheet').hidden = true; };
+const press = (id, attr, v) => [...$(id).children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === v)));
+const setSetting = (k, v) => { settings = { ...settings, [k]: v }; save(KEYS.settings, settings); };
+
+const wire = () => {
+  $('undo').onclick = takeBack;
+  $('menuBtn').onclick = openMenu;
+  $('closeSheet').onclick = closeMenu;
+  $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeMenu(); };
+  $('solv').onclick = () => {
+    if (settings.solv !== 'request' || rec.solv?.shownAtMove != null) return;
+    rec = { ...rec, solv: { result: rec.solv?.result ?? null, shownAtMove: rec.moves } };
+    persist();
+    render();
+  };
+  $('newVar').onclick = (e) => { const v = e.target.dataset.v; if (v) { newVariant = v; press('newVar', 'v', v); } };
+  $('layoutSeg').onclick = (e) => { const v = e.target.dataset.l; if (v) { setSetting('layout', v); press('layoutSeg', 'l', v); render(); } };
+  $('solvSeg').onclick = (e) => { const v = e.target.dataset.s; if (v) { setSetting('solv', v); press('solvSeg', 's', v); render(); } };
+  $('winOnly').onchange = (e) => setSetting('winnableOnly', e.target.checked);
+  $('newGame').onclick = () => {
+    const seed = Number($('seedIn').value);
+    if (!validSeed(seed)) { toast('Enter a whole number from 1 upwards'); return; }
+    closeMenu();
+    startGame(seed, newVariant);
+  };
+  $('randomGame').onclick = async () => {
+    closeMenu();
+    const seed = settings.winnableOnly ? await findWinnable(newVariant) : randomSeed();
+    startGame(seed, newVariant);
+  };
+  $('restart').onclick = () => {
+    closeMenu();
+    const prev = rec;
+    if (!prev.result) archive(withEnd(prev, 'restarted'));
+    rec = null;
+    startGame(prev.seed, prev.switched ? 'closed' : prev.variant, { attempt: prev.attempt + 1, restartOf: prev.id });
+    toast('Restarted (recorded)');
+  };
+  $('resign').onclick = () => { closeMenu(); if (!rec.result) finish('resigned'); };
+  $('switchRow').onclick = (e) => { const v = e.target.dataset.sw; if (v) { closeMenu(); switchTo(v); } };
+  $('phead').onclick = () => { collapsed = !collapsed; render(); };
+  $('endNew').onclick = () => { $('endSheet').hidden = true; openMenu(); };
+  $('endClose').onclick = () => { $('endSheet').hidden = true; };
+  addEventListener('resize', () => render());
+};
+
+// ============= Start =============
+
+const boot = async () => {
+  core = await loadCore(fetch('core.wasm'));
+  fetch('core-version.txt').then((r) => r.text()).then((v) => { $('coreVersion').textContent = v.trim(); }).catch(() => {});
+  wire();
+  const saved = load(KEYS.current, null);
+  if (saved && validSeed(saved.seed)) {
+    rec = saved;
+    replay(core, rec);
+    lay = core.layout();
+    refresh();
+    render();
+    if (rec.result) showEnd(rec.result);
+    checkSolvable();
+  } else {
+    startGame(1, 'closed');
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+};
+
+boot();

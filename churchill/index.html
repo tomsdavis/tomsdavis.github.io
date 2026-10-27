@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#10271f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Churchill">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <title>Churchill Solitaire</title>
+</head>
+<body>
+  <div class="frame portrait" id="frame">
+    <div class="side">
+      <div class="bar">
+        <span class="seed" id="seedLbl">Seed</span>
+        <span class="chip" id="varLbl">Closed</span>
+        <button class="solv" id="solv" type="button"></button>
+        <span class="spacer"></span>
+        <button class="undo" id="undo" type="button" aria-label="Take back"><span aria-hidden="true">&#8630;</span><span id="undoCount">0</span></button>
+        <button id="menuBtn" type="button" aria-label="Menu">&#9776;</button>
+      </div>
+      <div class="cols top" id="top"></div>
+      <div class="devilrow" id="devilrow">
+        <div class="status" id="status"></div>
+        <div class="stockslot" id="stockslot"></div>
+        <div class="devil" id="devil" aria-label="Devil's Six"></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="cols tableau" id="tableau"></div>
+      <div class="panel" id="panel" hidden>
+        <div class="phead" id="phead"><b>Stock</b><span id="pinfo"></span><span class="tog" id="ptog">Hide</span></div>
+        <div class="rows" id="rows"></div>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet" hidden>
+      <div class="in">
+        <h2>New game</h2>
+        <div class="row">
+          <label for="seedIn">Seed</label>
+          <input type="number" id="seedIn" min="1" step="1" inputmode="numeric">
+          <button id="newGame" type="button">Deal this seed</button>
+        </div>
+        <div class="row">
+          <span class="seg" id="newVar">
+            <button type="button" data-v="closed">Closed</button><button type="button" data-v="classic">Open classic</button><button type="button" data-v="natural">Open natural</button>
+          </span>
+        </div>
+        <div class="row">
+          <button id="randomGame" type="button">Random deal</button>
+          <label class="check"><input type="checkbox" id="winOnly"> Winnable deals only</label>
+        </div>
+        <h2>This game</h2>
+        <div class="row">
+          <button id="restart" type="button">Restart</button>
+          <button id="resign" type="button">Resign</button>
+        </div>
+        <div class="row" id="switchRow">
+          <span class="lbl">Switch to</span>
+          <button type="button" data-sw="classic">Open classic</button><button type="button" data-sw="natural">Open natural</button>
+        </div>
+        <h2>Settings</h2>
+        <div class="row">
+          <span class="lbl">Layout</span>
+          <span class="seg" id="layoutSeg">
+            <button type="button" data-l="auto">Auto</button><button type="button" data-l="portrait">Portrait</button><button type="button" data-l="landscape">Landscape</button>
+          </span>
+        </div>
+        <div class="row">
+          <span class="lbl">Winnable?</span>
+          <span class="seg" id="solvSeg">
+            <button type="button" data-s="known">Show</button><button type="button" data-s="request">On request</button><button type="button" data-s="never">Never</button>
+          </span>
+        </div>
+        <details>
+          <summary>Rules</summary>
+          <p class="note">Build the ten piles down in alternating colours; move any face-up run. Only a King, or a run headed by one, goes into an empty pile. Foundations build up by suit from Ace to King, two per suit; Aces go up by themselves. The Devil's Six go up only to the foundations, in order from the right. A deal puts one card on each pile, skipping piles that start with a face-up King. The stock is dealt once.</p>
+          <p class="note">Open classic shows every card but face-down cards still cannot move. Open natural starts with every card face up, so any run can move, and a pile that is one run from a King at the bottom is skipped by deals.</p>
+          <p class="note">Taking back a move is free if the move can be undone by another move; otherwise it counts 1, or the number of cards for a deal. "Winnable" means the deal can be won with every card known.</p>
+        </details>
+        <p class="note">Game core <span id="coreVersion">?</span></p>
+        <div class="row"><button id="closeSheet" type="button">Close</button></div>
+      </div>
+    </div>
+
+    <div class="sheet" id="endSheet" hidden>
+      <div class="in">
+        <h2 id="endTitle"></h2>
+        <p class="note" id="endStats"></p>
+        <div class="row"><button id="endNew" type="button">New game</button><button id="endClose" type="button">Look at the table</button></div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

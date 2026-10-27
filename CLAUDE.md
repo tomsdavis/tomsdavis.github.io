@@ -4,7 +4,7 @@
 A GitHub Pages site hosting independent progressive web apps (tools/calculators). Each tool is self-contained in its own subdirectory. The home page links to them.
 
 ### Repo structure: monorepo today, possibly per-tool repos later
-The three tools (ephemerides, armillarySphere, solfa) live together for one reason: a single GH Pages deploy. They are otherwise independent — different stacks, different dependencies, different audiences. If any single tool grows external interest (forks, issues, contributors) or the tools stop sharing structural conventions, splitting into per-tool repos deployed as GH Pages project pages is worth revisiting; public URLs (`tomsdavis.github.io/<tool>/`) stay the same under either layout, so the migration is mechanical rather than user-facing. Until then the monorepo wins on simplicity.
+The tools (ephemerides, armillarySphere, solfa, churchill) live together for one reason: a single GH Pages deploy. They are otherwise independent — different stacks, different dependencies, different audiences. If any single tool grows external interest (forks, issues, contributors) or the tools stop sharing structural conventions, splitting into per-tool repos deployed as GH Pages project pages is worth revisiting; public URLs (`tomsdavis.github.io/<tool>/`) stay the same under either layout, so the migration is mechanical rather than user-facing. Until then the monorepo wins on simplicity.
 
 ## Tech Stack & Constraints
 - **Vanilla HTML + CSS + JavaScript** is the default — no frameworks, no build tools, no npm
@@ -32,6 +32,10 @@ The three tools (ephemerides, armillarySphere, solfa) live together for one reas
   /solfa-src/             # Pre-built tool: SvelteKit source (Deno + Vite + adapter-static)
                           # Run `deno task build` here to emit ../solfa/. See solfa-src/CLAUDE.md.
   /solfa/                 # Pre-built tool: committed deploy artifact (plain static files)
+  /churchill/             # Churchill Solitaire: vanilla UI (source = deploy) plus core.wasm,
+                          # a binary built from the separate churchill repo (wasm/build.sh).
+                          # Edit the UI freely; rebuild core.wasm only when the Rust core changes.
+                          # Tests: node churchill/tests.js (or deno run --allow-read).
   /next-tool/             # Future tools follow either pattern
 ```
 
@@ -60,5 +64,6 @@ The three tools (ephemerides, armillarySphere, solfa) live together for one reas
 - GitHub Pages from `main` branch (user site repo `tomsdavis.github.io`, served at `https://tomsdavis.github.io/`)
 - No build step at deploy time — files served as-is
 - For vanilla tools: bump `CACHE_NAME` in each tool's `sw.js` when shipping changes to cached static assets, so the activate handler evicts the old cache on next load
+- For churchill: bump `CACHE_NAME` in `churchill/sw.js` as for vanilla tools, including after copying in a new `core.wasm`
 - For pre-built tools (e.g. solfa): rebuild locally before commit (`cd solfa-src && deno task build`); the adapter writes to `../solfa/` and the SW cache key rotates per build automatically
 - `.nojekyll` at the repo root disables GitHub Pages' Jekyll processing — required so paths beginning with `_` (e.g. SvelteKit's `_app/`) are served. Don't remove it.
