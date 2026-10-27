@@ -428,10 +428,21 @@ function render() {
   const up = pos.found.flat().reduce((a, b) => a + b, 0);
   $('status').innerHTML = `Moves <b>${rec.moves}</b><br>Up <b>${up}</b> / 104<br>Devil's Six left <b>${devilLeft.length}</b>`;
 
+  // solver playback bar (before sizing the stock panel, which makes room for it)
+  $('autobar').hidden = !auto && !busy;
+  $('autoCtl').hidden = !auto;
+  $('autoInfo').textContent = auto ? `Solver: move ${auto.i} of ${auto.line.length}` : busy ? 'Solver thinking' : '';
+  if (auto) {
+    $('autoPause').textContent = auto.paused ? 'Play' : 'Pause';
+    $('autoStep').disabled = !auto.paused;
+    press('speedSeg', 'sp', settings.speed);
+  }
+
   // the stock panel gets whatever height the tableau does not need
   $('panel').hidden = !open;
   if (open) {
-    const fixed = land ? 6 : [...document.querySelectorAll('.bar, .top, .devilrow')].reduce((a, e) => a + e.offsetHeight, 0);
+    const barH = $('autobar').offsetHeight;
+    const fixed = barH + (land ? 6 : [...document.querySelectorAll('.bar, .top, .devilrow')].reduce((a, e) => a + e.offsetHeight, 0));
     const avail = $('frame').clientHeight - fixed;
     $('panel').style.maxHeight = `${Math.max(cw * 3.2, avail - tableauNeed(pos, cw))}px`;
   }
@@ -472,16 +483,6 @@ function render() {
     col.onclick = () => { if (sel) { sel = null; render(); } };
     tab.append(col);
   });
-
-  // solver playback bar
-  $('autobar').hidden = !auto && !busy;
-  $('autoCtl').hidden = !auto;
-  $('autoInfo').textContent = auto ? `Solver: move ${auto.i} of ${auto.line.length}` : busy ? 'Solver thinking' : '';
-  if (auto) {
-    $('autoPause').textContent = auto.paused ? 'Play' : 'Pause';
-    $('autoStep').disabled = !auto.paused;
-    press('speedSeg', 'sp', settings.speed);
-  }
 
   // stock panel (open games)
   $('panel').classList.toggle('collapsed', collapsed);

@@ -145,7 +145,8 @@ button:disabled { opacity: .4; cursor: default; }
 .seg button { border: 0; border-radius: 0; font-size: 13px; }
 .seg button[aria-pressed=true] { background: var(--felt-line); }
 /* solver playback */
-.autobar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; background: var(--felt-deep); border-top: 1px solid var(--target); font-size: 13px; }
+/* In the layout's flow (last in the tableau column), so the stock panel shrinks and scrolls rather than being covered. */
+.autobar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; background: var(--felt-deep); border-top: 1px solid var(--target); font-size: 13px; }
 .autobar .ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
 .autobar button { padding: 4px 8px; font-size: 13px; }
 .autobar .seg button { padding: 4px 6px; }
