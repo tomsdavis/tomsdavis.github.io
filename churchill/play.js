@@ -81,7 +81,21 @@ export const newRecord = ({ seed, variant, attempt = 1, restartOf = null, now = 
   used: 0, // take-back count
   moves: 0, // moves played, including ones taken back
   solv: null, // { result, shownAtMove }
+  hints: 0, // hints shown
+  checks: 0, // "Still winnable?" asked
+  assisted: null, // { atMove }: the solver played on from this move
 });
+
+// Help from the solver, recorded: a hint ('h', the move), a check ('w',
+// the answer), or the solver taking over ('a').
+export const withHint = (rec, code) => ({ ...rec, hints: rec.hints + 1, events: [...rec.events, ['h', code]] });
+export const withCheck = (rec, result) => ({ ...rec, checks: rec.checks + 1, events: [...rec.events, ['w', result]] });
+export const withAssist = (rec) => ({
+  ...rec, assisted: rec.assisted ?? { atMove: rec.moves }, events: [...rec.events, ['a', rec.moves]],
+});
+
+// A win the solver finished is recorded as 'solved', not 'won'.
+export const winResult = (rec) => (rec.assisted ? 'solved' : 'won');
 
 export const withMove = (rec, code) => ({
   ...rec, line: [...rec.line, code], events: [...rec.events, ['m', code]], moves: rec.moves + 1,

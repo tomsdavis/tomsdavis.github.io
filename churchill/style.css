@@ -144,5 +144,14 @@ button:disabled { opacity: .4; cursor: default; }
 .seg { display: flex; border: 1px solid var(--felt-line); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; border-radius: 0; font-size: 13px; }
 .seg button[aria-pressed=true] { background: var(--felt-line); }
-.toast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--felt-deep); border: 1px solid var(--felt-line); border-radius: 8px; padding: 6px 10px; font-size: 13px; z-index: 6; white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) { .prow .c.flash, .solv.busy::before { animation: none; } .card.sel { transform: none; } }
+/* solver playback */
+.autobar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; background: var(--felt-deep); border-top: 1px solid var(--target); font-size: 13px; }
+.autobar .ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
+.autobar button { padding: 4px 8px; font-size: 13px; }
+.autobar .seg button { padding: 4px 6px; }
+.card.hint, .slot.hint, .stockbtn.hint { animation: hint 1s ease-in-out 3 alternate; box-shadow: 0 0 0 3px var(--target); }
+@keyframes hint { to { box-shadow: 0 0 0 3px transparent; } }
+.sheet .confirm { background: var(--felt); border-radius: 8px; padding: 8px; }
+button.danger { border-color: var(--bad); color: var(--bad); }
+.toast { position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%); background: var(--felt-deep); border: 1px solid var(--felt-line); border-radius: 8px; padding: 6px 10px; font-size: 13px; z-index: 6; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .prow .c.flash, .solv.busy::before, .card.hint, .slot.hint, .stockbtn.hint { animation: none; } .card.sel { transform: none; } }

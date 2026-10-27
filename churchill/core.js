@@ -101,5 +101,12 @@ export const loadCore = async (from) => {
       const r = w.solve(...splitSeed(seed), natural ? 1 : 0, limit, tries);
       return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
     },
+    // A winning line from the current position, as moves the player can
+    // make, simplified (shortcuts searched `depth` moves ahead, `budget`
+    // moves of work). { result, line }.
+    solveCurrent: (limit, tries, depth, budget) => {
+      const r = w.solve_current(limit, tries, depth, budget);
+      return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
+    },
   };
 };

@@ -40,6 +40,18 @@
       </div>
     </div>
 
+    <div class="autobar" id="autobar" hidden>
+      <span id="autoInfo"></span>
+      <span class="ctl" id="autoCtl">
+        <button id="autoPause" type="button">Pause</button>
+        <button id="autoStep" type="button">Step</button>
+        <span class="seg" id="speedSeg">
+          <button type="button" data-sp="4">4/s</button><button type="button" data-sp="2">2/s</button><button type="button" data-sp="1">1/s</button><button type="button" data-sp="0.5">&#189;/s</button>
+        </span>
+        <button id="autoStop" type="button">Stop</button>
+      </span>
+    </div>
+
     <div class="sheet" id="sheet" hidden>
       <div class="in">
         <h2>New game</h2>
@@ -62,6 +74,11 @@
           <button id="restart" type="button">Restart</button>
           <button id="resign" type="button">Resign</button>
         </div>
+        <div class="row">
+          <button id="hintBtn" type="button">Hint</button>
+          <button id="checkBtn" type="button">Still winnable?</button>
+          <button id="solveBtn" type="button">Solve from here</button>
+        </div>
         <div class="row" id="switchRow">
           <span class="lbl">Switch to</span>
           <button type="button" data-sw="classic">Open classic</button><button type="button" data-sw="natural">Open natural</button>
@@ -79,11 +96,28 @@
             <button type="button" data-s="known">Show</button><button type="button" data-s="request">On request</button><button type="button" data-s="never">Never</button>
           </span>
         </div>
+        <div class="row">
+          <span class="lbl">Solver speed</span>
+          <span class="seg" id="speedSeg2">
+            <button type="button" data-sp="4">4/s</button><button type="button" data-sp="2">2/s</button><button type="button" data-sp="1">1/s</button><button type="button" data-sp="0.5">1 per 2 s</button>
+          </span>
+        </div>
+        <h2>History</h2>
+        <div class="row">
+          <button id="exportBtn" type="button">Export history</button>
+          <button id="clearBtn" type="button">Clear history</button>
+        </div>
+        <div class="row confirm" id="clearConfirm" hidden>
+          <span class="note" id="clearMsg"></span>
+          <button id="clearYes" type="button" class="danger">Delete</button>
+          <button id="clearNo" type="button">Cancel</button>
+        </div>
         <details>
           <summary>Rules</summary>
           <p class="note">Build the ten piles down in alternating colours; move any face-up run. Only a King, or a run headed by one, goes into an empty pile. Foundations build up by suit from Ace to King, two per suit; Aces go up by themselves. The Devil's Six go up only to the foundations, in order from the right. A deal puts one card on each pile, skipping piles that start with a face-up King. The stock is dealt once.</p>
           <p class="note">Open classic shows every card but face-down cards still cannot move. Open natural starts with every card face up, so any run can move, and a pile that is one run from a King at the bottom is skipped by deals.</p>
           <p class="note">Taking back a move is free if the move can be undone by another move; otherwise it counts 1, or the number of cards for a deal. "Winnable" means the deal can be won with every card known.</p>
+          <p class="note">Hint, Still winnable? and Solve use the solver, which sees every card. They are recorded with the game; a game the solver finishes counts as solved, not won.</p>
         </details>
         <p class="note">Game core <span id="coreVersion">?</span></p>
         <div class="row"><button id="closeSheet" type="button">Close</button></div>

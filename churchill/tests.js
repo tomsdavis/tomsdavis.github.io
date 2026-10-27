@@ -7,7 +7,7 @@ import {
 } from './core.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
-  newRecord, withMove, withUndo, withSwitch, replay,
+  newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -200,8 +200,33 @@ describe('Solver', () => {
     assert(line.length > 50);
     assert(line.every((c) => ['found', 'run', 'deal'].includes(decodeMove(c).kind)));
   });
+  test('a line from a game in progress plays to a win under the player\'s rules', () => {
+    for (const natural of [false, true]) {
+      core.newGame(3, natural);
+      core.play(2); // deal first
+      const { result, line } = core.solveCurrent(1_000_000, 5000, 2, 2_000_000);
+      assertEqual(result, 'winnable', natural ? 'natural' : 'closed');
+      line.forEach((code) => assert(core.play(code) >= 0, `illegal ${JSON.stringify(decodeMove(code))}`));
+      assert(core.position().won, 'not won');
+    }
+  });
   test('a Devil\'s Six order loss is proven', () => {
     assertEqual(solver.solve(12, false, 1000, 1).result, 'lost');
+  });
+});
+
+describe('Help from the solver', () => {
+  test('hints and checks are counted; a solver finish is "solved"', () => {
+    let rec = newRecord({ seed: 1, variant: 'closed', now: 0 });
+    assertEqual(winResult(rec), 'won');
+    rec = withCheck(withHint(rec, 2), 'winnable');
+    assertEqual(rec.hints, 1);
+    assertEqual(rec.checks, 1);
+    assertEqual(winResult(rec), 'won');
+    rec = withMove(rec, 2);
+    rec = withAssist(withAssist(rec));
+    assertEqual(rec.assisted.atMove, 1);
+    assertEqual(winResult(rec), 'solved');
   });
 });
 

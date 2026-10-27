@@ -1,9 +1,10 @@
 // Churchill Solitaire: UI, persistence and the solver worker.
 
-import { loadCore, landing, rank, suit, isRed, rankText, GLYPH, SUITS, validSeed } from './core.js';
+import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, GLYPH, SUITS, validSeed } from './core.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
+  withHint, withCheck, withAssist, winResult,
 } from './play.js';
 
 // ============= Storage =============
@@ -24,11 +25,14 @@ let core;
 let rec; // the game record (see play.js)
 let pos, lay, legal; // core position, deal and legal moves
 let sel = null;
-let settings = { layout: 'auto', solv: 'known', winnableOnly: false, ...load(KEYS.settings, {}) };
+let settings = { layout: 'auto', solv: 'known', winnableOnly: false, speed: '2', ...load(KEYS.settings, {}) };
 let solv = { state: 'busy', key: null }; // solvability of the current deal and rules
 let collapsed = false;
 let prevLanding = new Map();
 let newVariant = 'closed';
+let busy = null; // 'hint' | 'check' | 'solve' while the solver works on a line
+let hintCode = null; // the move a hint points at, until the next move
+let auto = null; // solver playback: { line, i, paused, timer }
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => {
@@ -56,25 +60,48 @@ const toast = (msg) => {
 
 // ============= Solver worker =============
 
-let worker = null, jobId = 0, jobTimer = null;
+// One worker per kind of job ('deal': can this deal be won; 'line': a
+// winning line from the current position). A new job of the same kind
+// cancels the one running.
+const workers = {}, pending = {};
+let jobId = 0;
 const SOLVE_LIMIT = 1_000_000, SOLVE_TRIES = 5000, SOLVE_MS = 30_000;
+const SIMPLIFY_DEPTH = 2, SIMPLIFY_BUDGET = 2_000_000;
 
-const askSolver = (seed, natural, limit, tries, ms) => new Promise((resolve) => {
-  if (!worker) worker = new Worker('solver-worker.js', { type: 'module' });
+// Stop a worker; its pending job (if any) ends as 'cancelled'.
+const stopWorker = (kind) => {
+  const p = pending[kind];
+  workers[kind]?.terminate();
+  delete workers[kind];
+  delete pending[kind];
+  if (p) {
+    clearTimeout(p.timer);
+    p.resolve({ id: p.id, result: 'cancelled', line: [] });
+  }
+};
+
+const askSolver = (kind, msg, ms) => new Promise((resolve) => {
+  if (pending[kind]) stopWorker(kind);
+  if (!workers[kind]) {
+    const w = new Worker('solver-worker.js', { type: 'module' });
+    w.onmessage = ({ data }) => {
+      const p = pending[kind];
+      if (!p || p.id !== data.id) return;
+      clearTimeout(p.timer);
+      delete pending[kind];
+      p.resolve(data);
+    };
+    workers[kind] = w;
+  }
   const id = ++jobId;
-  clearTimeout(jobTimer);
-  jobTimer = setTimeout(() => {
-    // Out of time: stop the worker; a fresh one starts with the next job.
-    worker.terminate();
-    worker = null;
-    resolve({ id, result: 'unknown' });
+  // Out of time: stop the worker; a fresh one starts with the next job.
+  const timer = setTimeout(() => {
+    delete pending[kind];
+    stopWorker(kind);
+    resolve({ id, result: 'unknown', line: [] });
   }, ms);
-  worker.onmessage = ({ data }) => {
-    if (data.id !== id) return;
-    clearTimeout(jobTimer);
-    resolve(data);
-  };
-  worker.postMessage({ id, seed, natural, limit, tries });
+  pending[kind] = { id, resolve, timer };
+  workers[kind].postMessage({ id, kind, ...msg });
 });
 
 const checkSolvable = async () => {
@@ -82,8 +109,8 @@ const checkSolvable = async () => {
   if (solv.key === key) return;
   solv = { state: 'busy', key };
   render();
-  const { result } = await askSolver(rec.seed, usesNatural(), SOLVE_LIMIT, SOLVE_TRIES, SOLVE_MS);
-  if (solv.key !== key) return;
+  const { result } = await askSolver('deal', { seed: rec.seed, natural: usesNatural(), limit: SOLVE_LIMIT, tries: SOLVE_TRIES }, SOLVE_MS);
+  if (solv.key !== key || result === 'cancelled') return;
   solv = { state: result, key };
   rec = { ...rec, solv: { result, shownAtMove: rec.solv?.shownAtMove ?? (settings.solv === 'known' ? rec.moves : null) } };
   persist();
@@ -95,6 +122,9 @@ const checkSolvable = async () => {
 const persist = () => save(KEYS.current, rec);
 
 const startGame = (seed, variant, extra = {}) => {
+  stopAuto();
+  stopWorker('line');
+  busy = null;
   if (rec && !rec.result && rec.moves > 0) archive(withEnd(rec, 'abandoned'));
   rec = newRecord({ seed, variant, ...extra });
   core.newGame(seed, variant === 'natural');
@@ -116,21 +146,26 @@ const finish = (result) => {
 
 const playCode = (code) => {
   if (core.play(code) < 0) return;
+  // A line being worked out for the old position is no use now.
+  if (busy) stopWorker('line');
   rec = withMove(rec, code);
   sel = null;
+  hintCode = null;
   refresh();
   persist();
   render();
-  if (pos.won) finish('won');
+  if (pos.won) finish(winResult(rec));
   else if (legal.length === 0) finish('stuck');
 };
 
 const takeBack = () => {
-  if (rec.result) return;
+  if (rec.result || auto) return;
   const cost = core.undo();
   if (cost < 0) return;
+  if (busy) stopWorker('line');
   rec = withUndo(rec, cost);
   sel = null;
+  hintCode = null;
   refresh();
   persist();
   render();
@@ -154,11 +189,137 @@ const findWinnable = async (variant) => {
   toast('Looking for a winnable deal');
   for (let i = 0; i < 25; i++) {
     const seed = randomSeed();
-    const { result } = await askSolver(seed, variant === 'natural', 200_000, 1000, 8000);
+    const { result } = await askSolver('deal', { seed, natural: variant === 'natural', limit: 200_000, tries: 1000 }, 8000);
     if (result === 'winnable') return seed;
   }
   toast('No winnable deal found quickly; dealing a random one');
   return randomSeed();
+};
+
+// ============= Help from the solver =============
+
+const NO_LINE = {
+  lost: "This deal can't be won: the Devil's Six can't all go up in order.",
+  unknown: 'No winning line found from here within 30 s (it may still be winnable).',
+};
+
+// Ask the solver for a winning line from here; null if cancelled.
+const findLine = async (what) => {
+  if (busy || auto || rec.result) return null;
+  busy = what;
+  render();
+  const r = await askSolver('line', { game: rec, limit: SOLVE_LIMIT, tries: SOLVE_TRIES, depth: SIMPLIFY_DEPTH, budget: SIMPLIFY_BUDGET }, SOLVE_MS);
+  busy = null;
+  render();
+  return r.result === 'cancelled' ? null : r;
+};
+
+const describeMove = (code) => {
+  const m = decodeMove(code);
+  if (m.kind === 'deal') return 'deal';
+  if (m.kind === 'devil') return `play the Devil's Six ${cardName(lay.devil[pos.devilNext])} up`;
+  const p = pos.piles[m.from];
+  if (m.kind === 'found') return `play ${cardName(p.cards[p.cards.length - 1])} up`;
+  const head = p.cards[p.cards.length - m.count];
+  const onto = pos.piles[m.to].cards;
+  return `${cardName(head)}${m.count > 1 ? ` (and ${m.count - 1} more)` : ''} ${onto.length ? `onto ${cardName(onto[onto.length - 1])}` : 'to the empty pile'}`;
+};
+
+const hint = async () => {
+  const r = await findLine('hint');
+  if (!r) return;
+  if (r.result !== 'winnable') { toast(NO_LINE[r.result]); return; }
+  const code = r.line[0];
+  rec = withHint(rec, code);
+  persist();
+  const m = decodeMove(code);
+  const p = pos.piles[m.from];
+  sel = m.kind === 'run' ? { pile: m.from, index: p.cards.length - m.count }
+    : m.kind === 'found' ? { pile: m.from, index: p.cards.length - 1 }
+    : m.kind === 'devil' ? { devil: true } : null;
+  hintCode = code;
+  render();
+  toast(`Hint: ${describeMove(code)}`);
+};
+
+const checkWinnable = async () => {
+  const r = await findLine('check');
+  if (!r) return;
+  rec = withCheck(rec, r.result);
+  persist();
+  toast(r.result === 'winnable' ? 'Still winnable from here' : NO_LINE[r.result]);
+};
+
+const SPEED_MS = { 4: 250, 2: 500, 1: 1000, 0.5: 2000 };
+
+const solveFromHere = async () => {
+  const r = await findLine('solve');
+  if (!r) return;
+  if (r.result !== 'winnable') { toast(NO_LINE[r.result]); return; }
+  rec = withAssist(rec);
+  persist();
+  sel = null;
+  hintCode = null;
+  auto = { line: r.line, i: 0, paused: false, timer: null };
+  scheduleAuto();
+  render();
+};
+
+const scheduleAuto = () => {
+  clearTimeout(auto.timer);
+  if (!auto.paused) auto.timer = setTimeout(stepAuto, SPEED_MS[settings.speed] ?? 500);
+};
+
+const stepAuto = () => {
+  if (!auto) return;
+  const code = auto.line[auto.i];
+  if (code === undefined || core.play(code) < 0) {
+    stopAuto();
+    toast('Playback stopped: the line no longer fits this position');
+    return;
+  }
+  rec = withMove(rec, code);
+  auto.i++;
+  refresh();
+  persist();
+  if (pos.won) {
+    stopAuto();
+    finish(winResult(rec));
+    return;
+  }
+  scheduleAuto();
+  render();
+};
+
+const stopAuto = () => {
+  if (!auto) return;
+  clearTimeout(auto.timer);
+  auto = null;
+  if (rec) render();
+};
+
+// ============= History =============
+
+const exportHistory = async () => {
+  const name = `churchill-history-${new Date().toISOString().slice(0, 10)}.json`;
+  const data = JSON.stringify({
+    app: 'churchill', exported: new Date().toISOString(), core: $('coreVersion').textContent,
+    current: rec, records: load(KEYS.records, []),
+  });
+  const file = new File([data], name, { type: 'application/json' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+
+const clearHistory = () => {
+  save(KEYS.records, []);
+  toast('History cleared');
 };
 
 // ============= Rendering =============
@@ -214,7 +375,7 @@ function render() {
   sv.textContent = shown ? SOLV_TEXT[solv.state] : 'Winnable?';
   sv.title = 'Whether the deal can be won with every card known';
   const nextCost = core.undoCost();
-  $('undo').disabled = nextCost < 0 || !!rec.result;
+  $('undo').disabled = nextCost < 0 || !!rec.result || !!auto;
   $('undo').classList.toggle('costly', nextCost > 0);
   $('undo').setAttribute('aria-label', `Take back (${nextCost < 0 ? 'nothing to take back' : nextCost ? `counts ${nextCost}` : 'free'}), ${rec.used} used`);
   $('undoCount').textContent = rec.used;
@@ -228,14 +389,17 @@ function render() {
   SLOT_ORDER.forEach((s, i) => {
     const cell = el('div', 'cell');
     const h = slotHeight(i), hit = i === hitSlot;
-    const e = h ? cardEl(h | (SUITS.indexOf(s) << 4), hit ? 'target' : '') : el('div', `slot ${hit ? 'target' : ''}`, GLYPH[s]);
+    const isHint = hit && hintCode !== null && hintCode === tg.found;
+    const cls = `${hit ? 'target' : ''} ${isHint ? 'hint' : ''}`;
+    const e = h ? cardEl(h | (SUITS.indexOf(s) << 4), cls) : el('div', `slot ${cls}`, GLYPH[s]);
     e.onclick = () => { if (hit) playCode(tg.found); };
     cell.append(e);
     top.append(cell);
   });
   const left = lay.stock.length - pos.stockNext;
   const sb = el('button', 'stockbtn', left ? `<b>${left}</b><span>Deal</span>` : '<span>Empty</span>');
-  sb.disabled = !left || !!rec.result;
+  sb.disabled = !left || !!rec.result || !!auto;
+  sb.classList.toggle('hint', hintCode === 2);
   sb.setAttribute('aria-label', `Deal, ${left} cards left`);
   sb.onclick = () => { sel = null; playCode(2); };
   if (land) $('stockslot').replaceChildren(sb);
@@ -253,6 +417,7 @@ function render() {
     const e = stackedCardEl(c, isNext && sel?.devil ? 'sel' : '');
     e.style.left = `${k * step}px`;
     if (isNext) e.onclick = () => {
+      if (auto || rec.result) return;
       if (sel?.devil) { sel = null; render(); return; }
       if (!legal.includes(3)) { toast("No foundation takes the next Devil's Six card yet"); return; }
       sel = { devil: true };
@@ -278,9 +443,10 @@ function render() {
   pos.piles.forEach((pile, p) => {
     const col = el('div', 'col');
     const hitPile = tg.piles.has(p);
+    const hintPile = hitPile && hintCode !== null && tg.piles.get(p) === hintCode;
     const moveHere = () => playCode(tg.piles.get(p));
     if (!pile.cards.length) {
-      const s = el('div', `slot ${hitPile ? 'target' : ''}`, '');
+      const s = el('div', `slot ${hitPile ? 'target' : ''} ${hintPile ? 'hint' : ''}`, '');
       s.onclick = (ev) => { ev.stopPropagation(); if (hitPile) moveHere(); else if (sel) { sel = null; render(); } };
       col.append(s);
     }
@@ -289,11 +455,13 @@ function render() {
       const down = i < pile.down;
       const isSel = sel && !sel.devil && sel.pile === p && i >= sel.index;
       const cls = down ? (open ? 'off' : 'down') : '';
-      const e = cardEl(c, `${cls} ${isSel ? 'sel' : ''} ${hitPile && i === pile.cards.length - 1 ? 'target' : ''}`);
+      const last = i === pile.cards.length - 1;
+      const e = cardEl(c, `${cls} ${isSel ? 'sel' : ''} ${hitPile && last ? 'target' : ''} ${hintPile && last ? 'hint' : ''}`);
       e.style.top = `${offs[i]}px`;
       e.onclick = (ev) => {
         ev.stopPropagation();
-        if (rec.result) return;
+        if (rec.result || auto) return;
+        hintCode = null;
         if (hitPile) { moveHere(); return; }
         if (sel && !sel.devil && sel.pile === p && sel.index === i) { sel = null; render(); return; }
         if (canPick(pos, p, i)) { sel = { pile: p, index: i }; render(); }
@@ -304,6 +472,16 @@ function render() {
     col.onclick = () => { if (sel) { sel = null; render(); } };
     tab.append(col);
   });
+
+  // solver playback bar
+  $('autobar').hidden = !auto && !busy;
+  $('autoCtl').hidden = !auto;
+  $('autoInfo').textContent = auto ? `Solver: move ${auto.i} of ${auto.line.length}` : busy ? 'Solver thinking' : '';
+  if (auto) {
+    $('autoPause').textContent = auto.paused ? 'Play' : 'Pause';
+    $('autoStep').disabled = !auto.paused;
+    press('speedSeg', 'sp', settings.speed);
+  }
 
   // stock panel (open games)
   $('panel').classList.toggle('collapsed', collapsed);
@@ -341,11 +519,13 @@ function render() {
 const showEnd = (result) => {
   const msg = {
     won: 'Won!',
+    solved: 'Solved by the solver (not counted as a win).',
     stuck: 'No moves left.',
     resigned: 'Resigned.',
   }[result];
   $('endTitle').textContent = msg;
-  $('endStats').textContent = `Seed ${rec.seed}, ${VARIANT_NAME[rec.variant]}${rec.switched ? ' (switched)' : ''}: ${rec.moves} moves, ${rec.used} take-back${rec.used === 1 ? '' : 's'}. Solver: ${SOLV_TEXT[solv.state].toLowerCase()}.`;
+  const helped = [rec.hints && `${rec.hints} hint${rec.hints === 1 ? '' : 's'}`, rec.assisted && `solver from move ${rec.assisted.atMove}`].filter(Boolean).join(', ');
+  $('endStats').textContent = `Seed ${rec.seed}, ${VARIANT_NAME[rec.variant]}${rec.switched ? ' (switched)' : ''}: ${rec.moves} moves, ${rec.used} take-back${rec.used === 1 ? '' : 's'}${helped ? `, ${helped}` : ''}. Solver: ${SOLV_TEXT[solv.state].toLowerCase()}.`;
   $('endSheet').hidden = false;
   render();
 };
@@ -354,6 +534,9 @@ const openMenu = () => {
   $('seedIn').value = rec.seed;
   $('switchRow').hidden = rec.variant !== 'closed' || !!rec.result;
   $('resign').disabled = !!rec.result;
+  ['hintBtn', 'checkBtn', 'solveBtn'].forEach((id) => { $(id).disabled = !!rec.result || !!busy || !!auto; });
+  press('speedSeg2', 'sp', settings.speed);
+  $('clearConfirm').hidden = true;
   newVariant = rec.variant;
   press('newVar', 'v', newVariant);
   press('layoutSeg', 'l', settings.layout);
@@ -402,6 +585,31 @@ const wire = () => {
   $('resign').onclick = () => { closeMenu(); if (!rec.result) finish('resigned'); };
   $('switchRow').onclick = (e) => { const v = e.target.dataset.sw; if (v) { closeMenu(); switchTo(v); } };
   $('phead').onclick = () => { collapsed = !collapsed; render(); };
+  $('hintBtn').onclick = () => { closeMenu(); hint(); };
+  $('checkBtn').onclick = () => { closeMenu(); checkWinnable(); };
+  $('solveBtn').onclick = () => { closeMenu(); solveFromHere(); };
+  const setSpeed = (e) => {
+    const v = e.target.dataset.sp;
+    if (!v) return;
+    setSetting('speed', v);
+    press('speedSeg', 'sp', v);
+    press('speedSeg2', 'sp', v);
+    if (auto) scheduleAuto();
+  };
+  $('speedSeg').onclick = setSpeed;
+  $('speedSeg2').onclick = setSpeed;
+  $('autoPause').onclick = () => { if (!auto) return; auto.paused = !auto.paused; scheduleAuto(); render(); };
+  $('autoStep').onclick = () => { if (auto?.paused) stepAuto(); };
+  $('autoStop').onclick = () => { stopAuto(); toast('Solver stopped. Carry on by hand; a win now counts as solved.'); };
+  $('exportBtn').onclick = exportHistory;
+  $('clearBtn').onclick = () => {
+    const n = load(KEYS.records, []).length;
+    $('clearMsg').textContent = n ? `Delete ${n} finished game${n === 1 ? '' : 's'}? The game in progress and settings stay. This can't be undone.` : 'No finished games stored.';
+    $('clearYes').hidden = !n;
+    $('clearConfirm').hidden = false;
+  };
+  $('clearYes').onclick = () => { clearHistory(); $('clearConfirm').hidden = true; };
+  $('clearNo').onclick = () => { $('clearConfirm').hidden = true; };
   $('endNew').onclick = () => { $('endSheet').hidden = true; openMenu(); };
   $('endClose').onclick = () => { $('endSheet').hidden = true; };
   addEventListener('resize', () => render());

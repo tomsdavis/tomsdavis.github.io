@@ -1,7 +1,7 @@
 # Churchill Solitaire PWA - requirements
 
-Status (2026-10-27): version 1 built. Sections 1-12 are implemented except
-where noted; section 13 lists later requirements.
+Status (2026-10-27): built. Sections 1-14 are implemented except where
+noted; section 15 lists later requirements.
 
 ## 1. Purpose
 
@@ -226,24 +226,59 @@ can win it.
   any switch to open (variant and move number), restarts, result (won,
   stuck, resigned, abandoned), moves, take-back counts, start and end
   dates, and the move list. Version 1 only stores these; showing them is
-  a later requirement (section 13, Statistics).
+  a later requirement (section 15, Statistics).
 
-## 12. Menu
+## 12. Help from the solver (added 2026-10-27)
 
-New game, Restart, Switch to open, Resign, Rules (a short summary of RULES.md),
-Settings, About (version, core commit). History comes later (section 13).
+All three ask the core for a winning line from the current position
+(`solve_current`, in the 'line' worker, 30 s budget). The solver's line
+is expanded into moves the player can make (Devil's Six and foundation
+plays explicit) and simplified in the core (`src/simplify.rs` in the
+churchill repo: loops cut, shortcuts searched 2 moves ahead, unneeded
+moves dropped, foundation plays as early as the line allows; about 2.7%
+shorter and 22% fewer reversible moves). Each use is recorded in the game
+record (events `h`, `w`, `a`; counts `hints`, `checks`, `assisted`).
 
-## 13. Later requirements (not in version 1; all from the menu)
+- **Hint:** highlights the first move of the line (source selected, the
+  destination pulsing) and names it in a toast.
+- **Still winnable?** Says whether a winning line exists from here.
+- **Solve from here:** plays the line out. A bar at the bottom shows the
+  move count, Pause/Play, Step (while paused), speed (4, 2, 1 or 0.5 moves
+  a second; default 2, also in Settings) and Stop. Stopping hands the game
+  back. Once the solver has played, a finished game is recorded as
+  *solved*, not won, even if the player finishes it by hand.
+- If no line is found: "can't be won" (Devil's Six order proof) or "no
+  winning line found within 30 s".
+- A move or take-back while the solver is working cancels the request.
+
+## 13. History (added 2026-10-27)
+
+- **Export history** (Settings): the game in progress and every stored
+  game as one JSON file, through the share sheet where the device offers
+  it (iPhone), otherwise as a download.
+- **Clear history**: deletes the stored finished games after a
+  confirmation on the page; the game in progress and settings stay.
+- Each game takes about 5-10 KB, so browser storage holds several hundred.
+
+## 14. Menu
+
+New game (seed, variant, random, winnable only), This game (Restart,
+Resign, Hint, Still winnable?, Solve from here, Switch to open), Settings
+(layout, winnable indicator, solver speed), History (export, clear), Rules,
+core version.
+
+## 15. Later requirements (all from the menu)
 
 - **Benchmarks** after a game: for seeds 1-2000 and 200001-210000, what
   the rule list, the advice version, the lookahead and rollout players
   did on that deal, and the perfect-information result where known.
   Hidden until the game ends.
-- **Export** a game's move list as JSON the Rust CLI can replay, so a
-  person's play can be compared with the rule list.
-- **Hints** from the core: the rule list's move, a lookahead move.
-- **Still winnable?** On request, solve the current position (section 10);
-  recorded as a hint used. Shows the move where the game became lost.
+- **Replay exported games** in the Rust CLI, so a person's play can be
+  compared with the rule list (the export exists; the CLI side does not).
+- **Rule-list hints:** the rule list's move, or a lookahead move, as well
+  as the solver's.
+- **Where it was lost:** the move after which the game could no longer be
+  won.
 - **Optional automatic play:** safe foundation plays (`safe_auto`).
 - **Drag and drop**, double-tap to foundation.
 - **Four-colour suits** setting.
@@ -251,7 +286,7 @@ Settings, About (version, core commit). History comes later (section 13).
   reversible moves remain.
 - **Statistics** across seeds and variants.
 
-## 14. Testing
+## 16. Testing
 
 - Rust unit tests cover the core, including the Open, natural extension.
 - JS tests (in-browser `tests.html`, runnable with Deno) cover the WASM
@@ -259,7 +294,7 @@ Settings, About (version, core commit). History comes later (section 13).
   Rust CLI, take-back counts, the stock projection.
 - Manual check on an iPhone 16 (or Safari's responsive mode at 393 x 852).
 
-## 15. Decisions (2026-10-27)
+## 17. Decisions (2026-10-27)
 
 - Only Aces play automatically; the Devil's Six is the player's choice.
 - Switching Closed to either open variant is allowed and recorded.
@@ -269,3 +304,6 @@ Settings, About (version, core commit). History comes later (section 13).
 - Landscape layout as well as portrait.
 - Solvability shown live from a solver in the app (section 10).
 - Records are stored from version 1 but not shown in the UI yet.
+- Clear history and export; Hint, Still winnable? and Solve from here,
+  with solver lines simplified in the core; a solver finish counts as
+  solved, not won.
