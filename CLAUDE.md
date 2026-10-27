@@ -33,9 +33,13 @@ The tools (ephemerides, armillarySphere, solfa, churchill) live together for one
                           # Run `deno task build` here to emit ../solfa/. See solfa-src/CLAUDE.md.
   /solfa/                 # Pre-built tool: committed deploy artifact (plain static files)
   /churchill/             # Churchill Solitaire: vanilla UI (source = deploy) plus core.wasm,
-                          # a binary built from the separate churchill repo (wasm/build.sh).
+                          # a binary built from the separate private repo tomsdavis/churchill
+                          # (its wasm/build.sh; steps in that repo's docs/pwa/README.md).
                           # Edit the UI freely; rebuild core.wasm only when the Rust core changes.
+                          # Spec and status: churchill/REQUIREMENTS.md.
                           # Tests: node churchill/tests.js (or deno run --allow-read).
+                          # sw.js is network first on purpose (cache-first mixed versions
+                          # after an update and the app would not start); keep it so.
   /next-tool/             # Future tools follow either pattern
 ```
 
