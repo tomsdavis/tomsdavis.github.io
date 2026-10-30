@@ -110,9 +110,11 @@ export const loadCore = async (from) => {
       return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
     },
     // Can the game in progress still be won? As solveCurrent but the line
-    // is not simplified, so the answer comes sooner. { result, line }.
-    checkCurrent: (limit, tries) => {
-      const r = w.check_current(limit, tries);
+    // is not simplified, so the answer comes sooner. Once the stock is gone,
+    // if no win is found, a full search of up to `full` positions follows,
+    // which can prove the loss (0: none). { result, line }.
+    checkCurrent: (limit, tries, full = 0) => {
+      const r = w.check_current(limit, tries, full);
       return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
     },
   };

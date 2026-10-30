@@ -209,10 +209,13 @@ can win it.
   follows the game: after each move it answers for the position on the
   board, with every card known. States: *Checking*, *Winnable* (green),
   *Win not yet found* (amber), *Lost* (red), *Won* (green).
-  - A loss can rarely be proven: only the Devil's Six order check
-    (`proofs.rs`, from the current foundation heights) proves one, so red
-    is rare and amber is the usual sign that a move threw the win away.
-    Amber can be a false alarm: the search may just not find the win.
+  - A loss can rarely be proven: the Devil's Six order check (`proofs.rs`,
+    from the current foundation heights) proves one at any time, and once
+    the stock is gone a full search (every move under the player's own
+    rules, up to 1,000,000 positions, in the full-budget check) proves
+    most endgame losses. With stock left red is rare and amber is the
+    usual sign that a move threw the win away. Amber can be a false alarm:
+    the search may just not find the win.
   - No search is needed when the move follows the known winning line,
     when it is reversible (take-back cost 0: it can be moved back, so it
     keeps the win), or from a lost position. Answers are cached by

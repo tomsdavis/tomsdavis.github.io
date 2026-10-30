@@ -225,6 +225,12 @@ describe('Live indicator', () => {
     line.forEach((code) => assert(core.play(code) >= 0, `illegal ${JSON.stringify(decodeMove(code))}`));
     assert(core.position().won, 'not won');
   });
+  test('checkCurrent: once the stock is gone a full search proves a loss', () => {
+    core.newGame(5, false);
+    while (core.play(2) >= 0);
+    assertEqual(core.checkCurrent(100_000, 100).result, 'unknown');
+    assertEqual(core.checkCurrent(100_000, 100, 1_000_000).result, 'lost');
+  });
   test('a position keeps its key after a move and take-back; a move changes it', () => {
     core.newGame(1, false);
     const k = posKey(core.position());

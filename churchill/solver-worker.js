@@ -2,7 +2,7 @@
 // { id, kind: 'deal', seed, natural, limit, tries } (can the deal be won?)
 // or { id, kind: 'line', game, limit, tries, depth, budget } (a winning line
 // from the game's current position; game is the app's record) or
-// { id, kind: 'check', game, limit, tries } (can the game still be won?
+// { id, kind: 'check', game, limit, tries, full } (can the game still be won?
 // for the live indicator; the line is not simplified).
 // Messages out: { id, result, line, ms }. The app terminates the worker when
 // its time budget runs out.
@@ -18,7 +18,7 @@ self.onmessage = async ({ data }) => {
   const { result, line } = data.kind === 'line'
     ? (replay(c, data.game), c.solveCurrent(data.limit, data.tries, data.depth, data.budget))
     : data.kind === 'check'
-      ? (replay(c, data.game), c.checkCurrent(data.limit, data.tries))
+      ? (replay(c, data.game), c.checkCurrent(data.limit, data.tries, data.full))
       : c.solve(data.seed, data.natural, data.limit, data.tries);
   self.postMessage({ id: data.id, result, line, ms: Math.round(performance.now() - t) });
 };

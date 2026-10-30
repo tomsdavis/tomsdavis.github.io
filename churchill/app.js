@@ -125,6 +125,9 @@ const checkSolvable = async () => {
 // without a search do so (play.js, liveAfterMove), and while the player
 // thinks the worker checks the positions after the other moves.
 const LIVE_LIMIT = 300_000, LIVE_TRIES = 1500, LIVE_MS = 3000;
+// Positions for the full endgame search (stock gone; proves losses): about
+// 5 s natively, so within the full budget on a phone.
+const LIVE_ENDGAME = 1_000_000;
 const live = { cache: new Map(), here: null, probes: null, job: null };
 const isLive = () => settings.solv === 'live';
 
@@ -149,7 +152,7 @@ const liveSchedule = async () => {
   live.job = job;
   const game = job.code === null ? rec : withMove(rec, job.code);
   const r = await askSolver('check', {
-    game, limit: job.full ? SOLVE_LIMIT : LIVE_LIMIT, tries: job.full ? SOLVE_TRIES : LIVE_TRIES,
+    game, limit: job.full ? SOLVE_LIMIT : LIVE_LIMIT, tries: job.full ? SOLVE_TRIES : LIVE_TRIES, full: job.full ? LIVE_ENDGAME : 0,
   }, job.full ? SOLVE_MS : LIVE_MS);
   if (live.job !== job) return; // stopped or superseded
   live.job = null;
