@@ -125,8 +125,8 @@ const checkSolvable = async () => {
 // without a search do so (play.js, liveAfterMove), and while the player
 // thinks the worker checks the positions after the other moves.
 const LIVE_LIMIT = 300_000, LIVE_TRIES = 1500, LIVE_MS = 3000;
-// Positions for the full endgame search (stock gone; proves losses): about
-// 5 s natively, so within the full budget on a phone.
+// Positions for the full endgame search (stock gone; proves losses): up to
+// about 9 s on a desktop, so within the full budget on most phones.
 const LIVE_ENDGAME = 1_000_000;
 const live = { cache: new Map(), here: null, probes: null, job: null };
 const isLive = () => settings.solv === 'live';
@@ -156,6 +156,9 @@ const liveSchedule = async () => {
   }, job.full ? SOLVE_MS : LIVE_MS);
   if (live.job !== job) return; // stopped or superseded
   live.job = null;
+  // The full search can leave the worker holding tens of MB (WebAssembly
+  // never gives memory back): close it, and the next job starts a fresh one.
+  if (job.full) stopWorker('check');
   if (r.result !== 'cancelled') {
     live.cache.set(job.key, liveMerge(live.cache.get(job.key), { state: r.result, line: r.result === 'winnable' ? r.line : null, full: job.full }));
     if (job.key === live.here) {

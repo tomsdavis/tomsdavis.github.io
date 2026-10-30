@@ -212,8 +212,10 @@ can win it.
   - A loss can rarely be proven: the Devil's Six order check (`proofs.rs`,
     from the current foundation heights) proves one at any time, and once
     the stock is gone a full search (every move under the player's own
-    rules, up to 1,000,000 positions, in the full-budget check) proves
-    most endgame losses. With stock left red is rare and amber is the
+    rules, up to 1,000,000 positions and 100,000 moves deep, in the
+    full-budget check) proves many endgame losses (7 of 14 in the
+    loss-move study's endgames, from 0.01 to 0.7 s on a desktop; the
+    others end amber after up to 9 s). With stock left red is rare and amber is the
     usual sign that a move threw the win away. Amber can be a false alarm:
     the search may just not find the win.
   - No search is needed when the move follows the known winning line,
@@ -223,7 +225,11 @@ can win it.
   - While the player thinks, the 'check' worker checks the positions after
     the other legal moves (300,000 nodes or 3 s each). A position with no
     win found is checked again with the full budget (30 s) before amber
-    shows; until then the indicator shows *Checking*. Checking stops while
+    shows; until then the indicator shows *Checking*. The full search
+    can grow the worker's memory to about 45 MB, which WebAssembly never
+    gives back, so the 'check' worker is closed once a full-budget check
+    answers and a fresh one (about 1 MB) takes the next job; answers live
+    in the page's cache, so nothing is lost. Checking stops while
     the app is hidden, during Solve from here and when the game ends, and
     when Live is switched off.
   - Lines from Hint, Still winnable? and Solve from here feed the cache.
