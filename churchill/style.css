@@ -17,6 +17,7 @@
   --target: #f0b23a;
   --good: #7fd4a0;
   --bad: #e58b7a;
+  --warn: #e5c07a;
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-idx: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --cw: 36px;
@@ -58,6 +59,8 @@ button:disabled { opacity: .4; cursor: default; }
 .solv::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-dim); }
 .solv.winnable { color: var(--good); } .solv.winnable::before { background: var(--good); }
 .solv.lost { color: var(--bad); } .solv.lost::before { background: var(--bad); }
+.solv.won { color: var(--good); } .solv.won::before { background: var(--good); }
+.solv.live.unknown { color: var(--warn); } .solv.live.unknown::before { background: var(--warn); }
 .solv.busy::before { animation: pulse 1s infinite alternate; }
 @keyframes pulse { to { opacity: .2; } }
 .spacer { flex: 1; }

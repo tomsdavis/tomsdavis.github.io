@@ -8,6 +8,7 @@ import {
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
+  posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -212,6 +213,85 @@ describe('Solver', () => {
   });
   test('a Devil\'s Six order loss is proven', () => {
     assertEqual(solver.solve(12, false, 1000, 1).result, 'lost');
+  });
+});
+
+describe('Live indicator', () => {
+  test('checkCurrent: a line from a game in progress plays to a win', () => {
+    core.newGame(3, false);
+    core.play(2);
+    const { result, line } = core.checkCurrent(1_000_000, 5000);
+    assertEqual(result, 'winnable');
+    line.forEach((code) => assert(core.play(code) >= 0, `illegal ${JSON.stringify(decodeMove(code))}`));
+    assert(core.position().won, 'not won');
+  });
+  test('a position keeps its key after a move and take-back; a move changes it', () => {
+    core.newGame(1, false);
+    const k = posKey(core.position());
+    core.play(encodeMove({ kind: 'run', from: 6, to: 3, count: 1 }));
+    const k2 = posKey(core.position());
+    assert(k2 !== k);
+    core.undo();
+    assertEqual(posKey(core.position()), k);
+  });
+  test('following the line, reversible moves and lost positions need no search', () => {
+    const win = { state: 'winnable', line: [5, 6, 7] };
+    assertEqual(JSON.stringify(liveAfterMove(win, 5, 1)), JSON.stringify({ state: 'winnable', line: [6, 7] }));
+    assertEqual(JSON.stringify(liveAfterMove(win, 9, 0)), JSON.stringify({ state: 'winnable', line: null }));
+    assertEqual(liveAfterMove(win, 9, 1), null);
+    assertEqual(liveAfterMove({ state: 'lost', line: null }, 9, 3).state, 'lost');
+    assertEqual(liveAfterMove({ state: 'unknown', line: null }, 9, 0), null);
+    assertEqual(liveAfterMove(undefined, 9, 0), null);
+  });
+  test('a known win is never given up; a line replaces none', () => {
+    const bare = { state: 'winnable', line: null };
+    assertEqual(liveMerge(bare, { state: 'unknown', line: null }).state, 'winnable');
+    assert(liveMerge(bare, { state: 'unknown', line: null }).tried);
+    assertEqual(liveMerge(bare, { state: 'winnable', line: [1] }).line[0], 1);
+    assertEqual(liveMerge({ state: 'winnable', line: [1] }, { state: 'winnable', line: null }).line[0], 1);
+    assertEqual(liveMerge({ state: 'unknown', line: null }, { state: 'winnable', line: [2] }).state, 'winnable');
+    assertEqual(liveMerge(undefined, { state: 'lost', line: null }).state, 'lost');
+  });
+  test('next job: here first, then the full budget, then moves a search must settle', () => {
+    const probes = [
+      { code: 5, cost: 1, key: 'a' }, // the line's next move
+      { code: 6, cost: 0, key: 'b' }, // reversible
+      { code: 7, cost: 1, key: 'c' },
+      { code: 8, cost: 2, key: 'd' },
+    ];
+    const cache = new Map();
+    assertEqual(JSON.stringify(liveNextJob(cache, 'h', probes)), JSON.stringify({ key: 'h', code: null, full: false }));
+    cache.set('h', { state: 'unknown', line: null, full: false });
+    assert(liveNextJob(cache, 'h', probes).full);
+    cache.set('h', { state: 'winnable', line: [5, 9] });
+    assertEqual(liveNextJob(cache, 'h', probes).code, 7);
+    cache.set('c', { state: 'unknown', line: null });
+    assertEqual(liveNextJob(cache, 'h', probes).code, 8);
+    cache.set('d', { state: 'winnable', line: [1] });
+    assertEqual(liveNextJob(cache, 'h', probes), null);
+    cache.set('h', { state: 'winnable', line: null });
+    assertEqual(liveNextJob(cache, 'h', probes).code, null);
+    cache.set('h', { state: 'lost', line: null });
+    assertEqual(liveNextJob(cache, 'h', probes), null);
+  });
+});
+
+describe('Live indicator record', () => {
+  test('the move after which a shown win was first lost, and take-backs', () => {
+    let rec = newRecord({ seed: 1, variant: 'closed', now: 0 });
+    assertEqual(lastLiveAnswer(rec), null);
+    rec = withLiveAnswer(rec, 'unknown'); // no win shown yet: not a loss
+    assertEqual(rec.live.lostAt, null);
+    rec = withLiveAnswer(withMove(rec, 2), 'winnable');
+    rec = withLiveAnswer(withMove(withMove(rec, 2), 2), 'unknown');
+    assertEqual(rec.live.lostAt, 3);
+    assertEqual(rec.live.lostAs, 'unknown');
+    rec = withLiveBack(rec);
+    rec = withLiveAnswer(rec, 'winnable');
+    rec = withLiveAnswer(withMove(rec, 2), 'lost');
+    assertEqual(rec.live.lostAt, 3, 'the first loss is kept');
+    assertEqual(rec.live.backs, 1);
+    assertEqual(lastLiveAnswer(rec), 'lost');
   });
 });
 

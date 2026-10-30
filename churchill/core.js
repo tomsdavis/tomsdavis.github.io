@@ -70,7 +70,8 @@ const SEED_MAX = 2 ** 53 - 1;
 const splitSeed = (seed) => [Math.floor(seed / 2 ** 32), seed % 2 ** 32];
 export const validSeed = (seed) => Number.isInteger(seed) && seed >= 1 && seed <= SEED_MAX;
 
-// Outcome codes from solve().
+// Answers from solve(), solveCurrent() and checkCurrent(), by number (the
+// core's `Answer` enum).
 export const SOLVE = ['winnable', 'lost', 'unknown'];
 
 // Instantiate core.wasm from its bytes or a fetch Response (or a promise of
@@ -106,6 +107,12 @@ export const loadCore = async (from) => {
     // moves of work). { result, line }.
     solveCurrent: (limit, tries, depth, budget) => {
       const r = w.solve_current(limit, tries, depth, budget);
+      return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
+    },
+    // Can the game in progress still be won? As solveCurrent but the line
+    // is not simplified, so the answer comes sooner. { result, line }.
+    checkCurrent: (limit, tries) => {
+      const r = w.check_current(limit, tries);
       return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
     },
   };

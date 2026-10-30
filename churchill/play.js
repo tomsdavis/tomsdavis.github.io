@@ -84,6 +84,7 @@ export const newRecord = ({ seed, variant, attempt = 1, restartOf = null, now = 
   hints: 0, // hints shown
   checks: 0, // "Still winnable?" asked
   assisted: null, // { atMove }: the solver played on from this move
+  live: null, // with the indicator on Live: { won, lostAt, lostAs, backs } (see withLiveAnswer)
 });
 
 // Help from the solver, recorded: a hint ('h', the move), a check ('w',
@@ -93,6 +94,25 @@ export const withCheck = (rec, result) => ({ ...rec, checks: rec.checks + 1, eve
 export const withAssist = (rec) => ({
   ...rec, assisted: rec.assisted ?? { atMove: rec.moves }, events: [...rec.events, ['a', rec.moves]],
 });
+
+// The live indicator's answer for the position on the board changed to
+// `state` ('winnable', 'unknown' or 'lost'; event 'l'). The record keeps
+// whether a win was ever shown, the move after which the shown win was
+// first lost (`lostAt`, a move count) and how it showed (`lostAs`), and
+// take-backs made while it showed no win (`backs`).
+const LIVE0 = { won: false, lostAt: null, lostAs: null, backs: 0 };
+export const withLiveAnswer = (rec, state) => {
+  const l = rec.live ?? LIVE0;
+  const first = l.won && l.lostAt === null && state !== 'winnable';
+  return {
+    ...rec,
+    live: { ...l, won: l.won || state === 'winnable', ...(first ? { lostAt: rec.moves, lostAs: state } : {}) },
+    events: [...rec.events, ['l', state]],
+  };
+};
+export const withLiveBack = (rec) => ({ ...rec, live: { ...(rec.live ?? LIVE0), backs: (rec.live?.backs ?? 0) + 1 } });
+// The last answer the record noted, or null.
+export const lastLiveAnswer = (rec) => rec.events.findLast((e) => e[0] === 'l')?.[1] ?? null;
 
 // A win the solver finished is recorded as 'solved', not 'won'.
 export const winResult = (rec) => (rec.assisted ? 'solved' : 'won');
@@ -139,4 +159,51 @@ export const replay = (core, rec) => {
     core.play(code);
   });
   if (rec.switchAt !== null && rec.switchAt >= rec.line.length) core.switchNatural();
+};
+
+// ============= Live indicator =============
+
+// A key naming a position, for caching answers (take-backs and moves that
+// lead back return to a known answer).
+export const posKey = (pos) => [
+  pos.piles.map((p) => `${p.down}:${p.cards.join('.')}`).join('|'),
+  pos.found.flat().join('.'), pos.devilNext, pos.stockNext,
+].join('/');
+
+// What a move from a position with answer `prev` ({ state, line }) shows
+// about the new position without a search, or null if a search is needed.
+// Following a known winning line keeps the win, with the rest of the line.
+// A reversible move (take-back cost 0) can be moved back, so it keeps a
+// win; the line is lost, as the solver's pruned search cannot always see
+// that way back. A lost position stays lost.
+export const liveAfterMove = (prev, code, cost) => {
+  if (!prev) return null;
+  if (prev.state === 'winnable' && prev.line?.[0] === code) return { state: 'winnable', line: prev.line.slice(1) };
+  if (prev.state === 'lost') return { state: 'lost', line: null };
+  if (prev.state === 'winnable' && cost === 0) return { state: 'winnable', line: null };
+  return null;
+};
+
+// The answer to keep for a position, given the one cached (`had`) and a new
+// one (`got`). A known win is never given up for a search that found none;
+// a winning line replaces none.
+export const liveMerge = (had, got) => {
+  if (!had) return got;
+  if (had.state === 'winnable' && got.state !== 'winnable') return { ...had, tried: true };
+  if (had.state === 'winnable' && had.line && !got.line) return had;
+  return got;
+};
+
+// The next search for the live indicator, or null. `here` is the current
+// position's key, `probes` the legal moves from it as { code, cost, key }.
+// First the position itself (once quickly, then once with the full budget
+// if no win was found), then a line for a known win that has none, then
+// the positions after each move whose answer is not known without a search.
+export const liveNextJob = (cache, here, probes) => {
+  const now = cache.get(here);
+  if (!now) return { key: here, code: null, full: false };
+  if (now.state === 'unknown' && !now.full) return { key: here, code: null, full: true };
+  if (now.state === 'winnable' && !now.line && !now.tried) return { key: here, code: null, full: false };
+  const next = probes.find(({ code, cost, key }) => liveAfterMove(now, code, cost) === null && !cache.has(key));
+  return next ? { key: next.key, code: next.code, full: false } : null;
 };
