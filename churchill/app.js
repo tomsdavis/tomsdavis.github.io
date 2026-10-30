@@ -5,7 +5,7 @@ import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
   withHint, withCheck, withAssist, winResult, withPlaybackBack,
-  posKey, liveAfterMove, liveMerge, liveNextJob,
+  posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Storage =============
@@ -155,7 +155,10 @@ const liveSchedule = async () => {
   live.job = null;
   if (r.result !== 'cancelled') {
     live.cache.set(job.key, liveMerge(live.cache.get(job.key), { state: r.result, line: r.result === 'winnable' ? r.line : null, full: job.full }));
-    if (job.key === live.here) render();
+    if (job.key === live.here) {
+      liveNote();
+      render();
+    }
   }
   liveSchedule();
 };
@@ -168,8 +171,18 @@ const liveMoved = (code = null, cost = null) => {
   live.here = posKey(pos);
   const known = code === null ? null : liveAfterMove(prev, code, cost);
   if (known) live.cache.set(live.here, liveMerge(live.cache.get(live.here), known));
+  liveNote();
   if (live.job && live.job.key !== live.here) liveStop();
   liveSchedule();
+};
+
+// Record a change in the answer shown for the position on the board.
+const liveNote = () => {
+  if (!isLive() || rec.result) return;
+  const { state } = liveAnswer();
+  if (!['winnable', 'unknown', 'lost'].includes(state) || state === lastLiveAnswer(rec)) return;
+  rec = withLiveAnswer(rec, state);
+  persist();
 };
 
 const liveReset = () => {
@@ -235,10 +248,12 @@ const playCode = (code) => {
 
 const takeBack = () => {
   if (rec.result || auto) return;
+  const noWin = isLive() && ['unknown', 'lost'].includes(liveAnswer().state);
   const cost = core.undo();
   if (cost < 0) return;
   if (busy) stopWorker('line');
   rec = withUndo(rec, cost);
+  if (noWin) rec = withLiveBack(rec);
   sel = null;
   hintCode = null;
   refresh();
@@ -290,6 +305,7 @@ const findLine = async (what) => {
   // The line is in the player's moves, so the live indicator can use it.
   if (r.result === 'winnable' || r.result === 'lost') {
     live.cache.set(live.here, liveMerge(live.cache.get(live.here), { state: r.result, line: r.result === 'winnable' ? r.line : null, full: true }));
+    liveNote();
   }
   render();
   return r.result === 'cancelled' ? null : r;
@@ -633,8 +649,16 @@ const showEnd = (result) => {
     resigned: 'Resigned.',
   }[result];
   $('endTitle').textContent = msg;
-  const helped = [rec.hints && `${rec.hints} hint${rec.hints === 1 ? '' : 's'}`, rec.assisted && `solver from move ${rec.assisted.atMove}`].filter(Boolean).join(', ');
-  $('endStats').textContent = `Seed ${rec.seed}, ${VARIANT_NAME[rec.variant]}${rec.switched ? ' (switched)' : ''}: ${rec.moves} moves, ${rec.used} take-back${rec.used === 1 ? '' : 's'}${helped ? `, ${helped}` : ''}. Solver: ${SOLV_TEXT[solv.state].toLowerCase()}.`;
+  const helped = [
+    rec.hints && `${rec.hints} hint${rec.hints === 1 ? '' : 's'}`,
+    rec.assisted && `solver from move ${rec.assisted.atMove}`,
+    // In the closed game the live indicator shows what the hidden cards allow.
+    rec.variant === 'closed' && rec.live && 'live indicator',
+  ].filter(Boolean).join(', ');
+  const lost = rec.live?.lostAt != null
+    ? ` ${rec.live.lostAs === 'lost' ? 'Win lost' : 'No win found'} after move ${rec.live.lostAt}${rec.live.backs ? `; ${rec.live.backs} take-back${rec.live.backs === 1 ? '' : 's'} while it showed` : ''}.`
+    : '';
+  $('endStats').textContent = `Seed ${rec.seed}, ${VARIANT_NAME[rec.variant]}${rec.switched ? ' (switched)' : ''}: ${rec.moves} moves, ${rec.used} take-back${rec.used === 1 ? '' : 's'}${helped ? `, ${helped}` : ''}. Solver: ${SOLV_TEXT[solv.state].toLowerCase()}.${lost}`;
   $('endSheet').hidden = false;
   render();
 };

@@ -8,7 +8,7 @@ import {
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
-  posKey, liveAfterMove, liveMerge, liveNextJob,
+  posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -273,6 +273,25 @@ describe('Live indicator', () => {
     assertEqual(liveNextJob(cache, 'h', probes).code, null);
     cache.set('h', { state: 'lost', line: null });
     assertEqual(liveNextJob(cache, 'h', probes), null);
+  });
+});
+
+describe('Live indicator record', () => {
+  test('the move after which a shown win was first lost, and take-backs', () => {
+    let rec = newRecord({ seed: 1, variant: 'closed', now: 0 });
+    assertEqual(lastLiveAnswer(rec), null);
+    rec = withLiveAnswer(rec, 'unknown'); // no win shown yet: not a loss
+    assertEqual(rec.live.lostAt, null);
+    rec = withLiveAnswer(withMove(rec, 2), 'winnable');
+    rec = withLiveAnswer(withMove(withMove(rec, 2), 2), 'unknown');
+    assertEqual(rec.live.lostAt, 3);
+    assertEqual(rec.live.lostAs, 'unknown');
+    rec = withLiveBack(rec);
+    rec = withLiveAnswer(rec, 'winnable');
+    rec = withLiveAnswer(withMove(rec, 2), 'lost');
+    assertEqual(rec.live.lostAt, 3, 'the first loss is kept');
+    assertEqual(rec.live.backs, 1);
+    assertEqual(lastLiveAnswer(rec), 'lost');
   });
 });
 

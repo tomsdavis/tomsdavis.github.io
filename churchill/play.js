@@ -84,6 +84,7 @@ export const newRecord = ({ seed, variant, attempt = 1, restartOf = null, now = 
   hints: 0, // hints shown
   checks: 0, // "Still winnable?" asked
   assisted: null, // { atMove }: the solver played on from this move
+  live: null, // with the indicator on Live: { won, lostAt, lostAs, backs } (see withLiveAnswer)
 });
 
 // Help from the solver, recorded: a hint ('h', the move), a check ('w',
@@ -93,6 +94,25 @@ export const withCheck = (rec, result) => ({ ...rec, checks: rec.checks + 1, eve
 export const withAssist = (rec) => ({
   ...rec, assisted: rec.assisted ?? { atMove: rec.moves }, events: [...rec.events, ['a', rec.moves]],
 });
+
+// The live indicator's answer for the position on the board changed to
+// `state` ('winnable', 'unknown' or 'lost'; event 'l'). The record keeps
+// whether a win was ever shown, the move after which the shown win was
+// first lost (`lostAt`, a move count) and how it showed (`lostAs`), and
+// take-backs made while it showed no win (`backs`).
+const LIVE0 = { won: false, lostAt: null, lostAs: null, backs: 0 };
+export const withLiveAnswer = (rec, state) => {
+  const l = rec.live ?? LIVE0;
+  const first = l.won && l.lostAt === null && state !== 'winnable';
+  return {
+    ...rec,
+    live: { ...l, won: l.won || state === 'winnable', ...(first ? { lostAt: rec.moves, lostAs: state } : {}) },
+    events: [...rec.events, ['l', state]],
+  };
+};
+export const withLiveBack = (rec) => ({ ...rec, live: { ...(rec.live ?? LIVE0), backs: (rec.live?.backs ?? 0) + 1 } });
+// The last answer the record noted, or null.
+export const lastLiveAnswer = (rec) => rec.events.findLast((e) => e[0] === 'l')?.[1] ?? null;
 
 // A win the solver finished is recorded as 'solved', not 'won'.
 export const winResult = (rec) => (rec.assisted ? 'solved' : 'won');

@@ -203,8 +203,33 @@ can win it.
   for 78.45% (perfect-information findings). Expect WASM on an iPhone to
   be 1.5 to 3 times slower.
 - **Indicator.** After a deal is chosen the top bar shows *Checking*, then
-  the answer. A setting chooses: show when known (default), show on
+  the answer. A setting chooses: Live, show when known (default), show on
   request, or never.
+- **Live** (added 2026-10-30; opt in for every variant). The indicator
+  follows the game: after each move it answers for the position on the
+  board, with every card known. States: *Checking*, *Winnable* (green),
+  *Win not yet found* (amber), *Lost* (red), *Won* (green).
+  - A loss can rarely be proven: only the Devil's Six order check
+    (`proofs.rs`, from the current foundation heights) proves one, so red
+    is rare and amber is the usual sign that a move threw the win away.
+    Amber can be a false alarm: the search may just not find the win.
+  - No search is needed when the move follows the known winning line,
+    when it is reversible (take-back cost 0: it can be moved back, so it
+    keeps the win), or from a lost position. Answers are cached by
+    position, so take-backs answer at once.
+  - While the player thinks, the 'check' worker checks the positions after
+    the other legal moves (300,000 nodes or 3 s each). A position with no
+    win found is checked again with the full budget (30 s) before amber
+    shows; until then the indicator shows *Checking*. Checking stops while
+    the app is hidden, during Solve from here and when the game ends, and
+    when Live is switched off.
+  - Lines from Hint, Still winnable? and Solve from here feed the cache.
+  - Recorded: each change of answer (event `l`), and `live`: whether a win
+    was shown, the move after which the shown win was first lost and how
+    (`lostAt`, `lostAs`), and take-backs made while no win showed
+    (`backs`). The end screen shows the first loss. In the closed game Live
+    counts as help (it shows what the hidden cards allow).
+  - Core call: `check_current` (as `solve_current` without simplifying).
 - **Winnable deals only** (new-game option). Random picks seeds and checks
   each with a short budget (about 3 s) until one is winnable; usually done
   in a second or two. An entered seed is never refused; it just shows its
@@ -242,6 +267,7 @@ churchill repo: loops cut, shortcuts searched 2 moves ahead, unneeded
 moves dropped, foundation plays as early as the line allows; about 2.7%
 shorter and 22% fewer reversible moves). Each use is recorded in the game
 record (events `h`, `w`, `a`; counts `hints`, `checks`, `assisted`).
+The live indicator (section 10) also feeds on these lines.
 
 - **Hint:** highlights the first move of the line (source selected, the
   destination pulsing) and names it in a toast.
