@@ -5,6 +5,7 @@ import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
   withHint, withCheck, withAssist, winResult, withPlaybackBack,
+  posKey, liveAfterMove, liveMerge, liveNextJob,
 } from './play.js';
 
 // ============= Storage =============
@@ -117,6 +118,76 @@ const checkSolvable = async () => {
   render();
 };
 
+// ============= Live indicator =============
+
+// With the indicator set to Live, the top bar answers for the position on
+// the board: answers are cached by position, moves that settle the answer
+// without a search do so (play.js, liveAfterMove), and while the player
+// thinks the worker checks the positions after the other moves.
+const LIVE_LIMIT = 300_000, LIVE_TRIES = 1500, LIVE_MS = 3000;
+const live = { cache: new Map(), here: null, probes: null, job: null };
+const isLive = () => settings.solv === 'live';
+
+// The legal moves from here as { code, cost, key }: play each, note it, take it back.
+const probeMoves = () => legal.map((code) => {
+  const cost = core.play(code);
+  const key = posKey(core.position());
+  core.undo();
+  return { code, cost, key };
+});
+
+const liveStop = () => {
+  live.job = null;
+  stopWorker('check');
+};
+
+const liveSchedule = async () => {
+  if (!isLive() || rec.result || auto || document.hidden || live.job) return;
+  if (live.probes?.here !== live.here) live.probes = { here: live.here, list: probeMoves() };
+  const job = liveNextJob(live.cache, live.here, live.probes.list);
+  if (!job) return;
+  live.job = job;
+  const game = job.code === null ? rec : withMove(rec, job.code);
+  const r = await askSolver('check', {
+    game, limit: job.full ? SOLVE_LIMIT : LIVE_LIMIT, tries: job.full ? SOLVE_TRIES : LIVE_TRIES,
+  }, job.full ? SOLVE_MS : LIVE_MS);
+  if (live.job !== job) return; // stopped or superseded
+  live.job = null;
+  if (r.result !== 'cancelled') {
+    live.cache.set(job.key, liveMerge(live.cache.get(job.key), { state: r.result, line: r.result === 'winnable' ? r.line : null, full: job.full }));
+    if (job.key === live.here) render();
+  }
+  liveSchedule();
+};
+
+// The board changed (a move with take-back cost `cost`, or with code null a
+// take-back or a new game). Settle what can be settled without a search;
+// keep a running search only if it is for the new position.
+const liveMoved = (code = null, cost = null) => {
+  const prev = live.cache.get(live.here);
+  live.here = posKey(pos);
+  const known = code === null ? null : liveAfterMove(prev, code, cost);
+  if (known) live.cache.set(live.here, liveMerge(live.cache.get(live.here), known));
+  if (live.job && live.job.key !== live.here) liveStop();
+  liveSchedule();
+};
+
+const liveReset = () => {
+  liveStop();
+  live.cache.clear();
+  live.here = null;
+  live.probes = null;
+  liveMoved();
+};
+
+// A quick search that found no win is often just too short: show Checking
+// until the full budget has been tried too.
+const liveAnswer = () => {
+  if (pos.won) return { state: 'won' };
+  const a = live.cache.get(live.here);
+  return !a || (a.state === 'unknown' && !a.full) ? { state: 'busy' } : a;
+};
+
 // ============= Game flow =============
 
 const persist = () => save(KEYS.current, rec);
@@ -132,12 +203,14 @@ const startGame = (seed, variant, extra = {}) => {
   sel = null;
   prevLanding = new Map();
   refresh();
+  liveReset();
   persist();
   render();
   checkSolvable();
 };
 
 const finish = (result) => {
+  liveStop();
   rec = withEnd(rec, result);
   archive(rec);
   persist();
@@ -145,13 +218,15 @@ const finish = (result) => {
 };
 
 const playCode = (code) => {
-  if (core.play(code) < 0) return;
+  const cost = core.play(code);
+  if (cost < 0) return;
   // A line being worked out for the old position is no use now.
   if (busy) stopWorker('line');
   rec = withMove(rec, code);
   sel = null;
   hintCode = null;
   refresh();
+  liveMoved(code, cost);
   persist();
   render();
   if (pos.won) finish(winResult(rec));
@@ -167,6 +242,7 @@ const takeBack = () => {
   sel = null;
   hintCode = null;
   refresh();
+  liveMoved();
   persist();
   render();
 };
@@ -177,6 +253,7 @@ const switchTo = (variant) => {
   if (variant === 'natural') core.switchNatural();
   sel = null;
   refresh();
+  liveReset();
   persist();
   render();
   toast(`Switched to ${VARIANT_NAME[variant]} (recorded)`);
@@ -210,6 +287,10 @@ const findLine = async (what) => {
   render();
   const r = await askSolver('line', { game: rec, limit: SOLVE_LIMIT, tries: SOLVE_TRIES, depth: SIMPLIFY_DEPTH, budget: SIMPLIFY_BUDGET }, SOLVE_MS);
   busy = null;
+  // The line is in the player's moves, so the live indicator can use it.
+  if (r.result === 'winnable' || r.result === 'lost') {
+    live.cache.set(live.here, liveMerge(live.cache.get(live.here), { state: r.result, line: r.result === 'winnable' ? r.line : null, full: true }));
+  }
   render();
   return r.result === 'cancelled' ? null : r;
 };
@@ -260,6 +341,7 @@ const solveFromHere = async () => {
   persist();
   sel = null;
   hintCode = null;
+  liveStop();
   auto = { line: r.line, i: 0, paused: false, timer: null };
   scheduleAuto();
   render();
@@ -273,7 +355,8 @@ const scheduleAuto = () => {
 const stepAuto = () => {
   if (!auto) return;
   const code = auto.line[auto.i];
-  if (code === undefined || core.play(code) < 0) {
+  const cost = code === undefined ? -1 : core.play(code);
+  if (cost < 0) {
     stopAuto();
     toast('Playback stopped: the line no longer fits this position');
     return;
@@ -281,6 +364,7 @@ const stepAuto = () => {
   rec = withMove(rec, code);
   auto.i++;
   refresh();
+  liveMoved(code, cost);
   persist();
   if (pos.won) {
     stopAuto();
@@ -297,6 +381,7 @@ const stepBackAuto = () => {
   rec = withPlaybackBack(rec);
   auto.i--;
   refresh();
+  liveMoved();
   persist();
   render();
 };
@@ -305,7 +390,10 @@ const stopAuto = () => {
   if (!auto) return;
   clearTimeout(auto.timer);
   auto = null;
-  if (rec) render();
+  if (rec) {
+    render();
+    liveSchedule();
+  }
 };
 
 // ============= History =============
@@ -366,6 +454,7 @@ const applyLayout = () => {
 };
 
 const SOLV_TEXT = { busy: 'Checking', winnable: 'Winnable', lost: 'Lost', unknown: 'Unknown' };
+const LIVE_TEXT = { busy: 'Checking', winnable: 'Winnable', lost: 'Lost', unknown: 'Win not yet found', won: 'Won' };
 
 function render() {
   const land = applyLayout();
@@ -379,11 +468,19 @@ function render() {
   $('varLbl').title = VARIANT_NAME[rec.variant];
   $('varLbl').classList.toggle('sw', !!rec.switched);
   const sv = $('solv');
-  const shown = settings.solv === 'known' || (settings.solv === 'request' && rec.solv?.shownAtMove != null) || rec.result;
-  sv.hidden = settings.solv === 'never' && !rec.result;
-  sv.className = `solv ${solv.state}`;
-  sv.textContent = shown ? SOLV_TEXT[solv.state] : 'Winnable?';
-  sv.title = 'Whether the deal can be won with every card known';
+  if (isLive()) {
+    const { state } = liveAnswer();
+    sv.hidden = false;
+    sv.className = `solv live ${state}`;
+    sv.textContent = LIVE_TEXT[state];
+    sv.title = 'Whether the game can still be won from here, with every card known';
+  } else {
+    const shown = settings.solv === 'known' || settings.solv === 'live' || (settings.solv === 'request' && rec.solv?.shownAtMove != null) || rec.result;
+    sv.hidden = settings.solv === 'never' && !rec.result;
+    sv.className = `solv ${solv.state}`;
+    sv.textContent = shown ? SOLV_TEXT[solv.state] : 'Winnable?';
+    sv.title = 'Whether the deal can be won with every card known';
+  }
   const nextCost = core.undoCost();
   $('undo').disabled = nextCost < 0 || !!rec.result || !!auto;
   $('undo').classList.toggle('costly', nextCost > 0);
@@ -573,7 +670,14 @@ const wire = () => {
   };
   $('newVar').onclick = (e) => { const v = e.target.dataset.v; if (v) { newVariant = v; press('newVar', 'v', v); } };
   $('layoutSeg').onclick = (e) => { const v = e.target.dataset.l; if (v) { setSetting('layout', v); press('layoutSeg', 'l', v); render(); } };
-  $('solvSeg').onclick = (e) => { const v = e.target.dataset.s; if (v) { setSetting('solv', v); press('solvSeg', 's', v); render(); } };
+  $('solvSeg').onclick = (e) => {
+    const v = e.target.dataset.s;
+    if (!v) return;
+    setSetting('solv', v);
+    press('solvSeg', 's', v);
+    if (isLive()) liveSchedule(); else liveStop();
+    render();
+  };
   $('winOnly').onchange = (e) => setSetting('winnableOnly', e.target.checked);
   $('newGame').onclick = () => {
     const seed = Number($('seedIn').value);
@@ -626,6 +730,8 @@ const wire = () => {
   $('endNew').onclick = () => { $('endSheet').hidden = true; openMenu(); };
   $('endClose').onclick = () => { $('endSheet').hidden = true; };
   addEventListener('resize', () => render());
+  // No background searching while the app is out of sight.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) liveStop(); else liveSchedule(); });
 };
 
 // ============= Start =============
@@ -640,6 +746,7 @@ const boot = async () => {
     replay(core, rec);
     lay = core.layout();
     refresh();
+    liveReset();
     render();
     if (rec.result) showEnd(rec.result);
     checkSolvable();
