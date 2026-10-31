@@ -226,8 +226,19 @@ describe('Live indicator', () => {
     assert(core.position().won, 'not won');
   });
   test('checkCurrent: once the stock is gone a full search proves a loss', () => {
+    core.newGame(3, false);
+    while (core.play(2) >= 0);
+    assertEqual(core.checkCurrent(100_000, 100).result, 'unknown');
+    assertEqual(core.checkCurrent(100_000, 100, 1_000_000).result, 'lost');
+  });
+  test('checkCurrent: the dead-end test proves a loss with no search', () => {
     core.newGame(5, false);
     while (core.play(2) >= 0);
+    assertEqual(core.checkCurrent(1, 1).result, 'lost');
+  });
+  test('checkCurrent: one deal before the end a full search proves a loss', () => {
+    core.newGame(10, false);
+    while (68 - core.position().stockNext > 10) core.play(2);
     assertEqual(core.checkCurrent(100_000, 100).result, 'unknown');
     assertEqual(core.checkCurrent(100_000, 100, 1_000_000).result, 'lost');
   });
