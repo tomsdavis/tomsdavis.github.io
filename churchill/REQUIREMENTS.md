@@ -209,15 +209,17 @@ can win it.
   follows the game: after each move it answers for the position on the
   board, with every card known. States: *Checking*, *Winnable* (green),
   *Win not yet found* (amber), *Lost* (red), *Won* (green).
-  - A loss can rarely be proven: the Devil's Six order check (`proofs.rs`,
-    from the current foundation heights) proves one at any time, and once
-    the stock is gone a full search (every move under the player's own
-    rules, up to 1,000,000 positions and 100,000 moves deep, in the
-    full-budget check) proves many endgame losses (7 of 14 in the
-    loss-move study's endgames, from 0.01 to 0.7 s on a desktop; the
-    others end amber after up to 9 s). With stock left red is rare and amber is the
-    usual sign that a move threw the win away. Amber can be a false alarm:
-    the search may just not find the win.
+  - Losses are proven three ways (`proofs.rs`, `solver.rs`): the Devil's
+    Six order check and the dead-end test (a card that can never reach
+    the foundations; added 2026-10-31) at any time, and in the last two
+    deals (20 stock cards or fewer) a full search (every move under the
+    player's own rules, up to 1,000,000 positions and 100,000 moves deep,
+    in the full-budget check, cutting positions the dead-end test proves
+    lost). On seeds 1-39 pressing Deal only, Node: red for 37 with the
+    stock gone (24 at once), 27 one deal before the end, 13 two deals
+    before; slowest 5.7 s, up to 44 MB. Earlier in the game red is rare
+    and amber is the usual sign that a move threw the win away. Amber can
+    be a false alarm: the search may just not find the win.
   - No search is needed when the move follows the known winning line,
     when it is reversible (take-back cost 0: it can be moved back, so it
     keeps the win), or from a lost position. Answers are cached by
