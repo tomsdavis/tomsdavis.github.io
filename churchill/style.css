@@ -73,6 +73,9 @@ button:disabled { opacity: .4; cursor: default; }
 .spacer { flex: 1; }
 .undo { white-space: nowrap; font-variant-numeric: tabular-nums; display: flex; gap: 5px; align-items: center; }
 .undo.costly { border-color: var(--target); color: var(--target); }
+/* Take-back and menu icons: drawn, so every device shows the same shapes. */
+.ico { width: 18px; height: 18px; display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+#menuBtn { display: flex; align-items: center; }
 
 /* cards */
 .card {

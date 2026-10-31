@@ -89,8 +89,8 @@ No optional automatic play in version 1 (the engine's `safe_auto` stays off).
 ### Portrait, top to bottom
 
 Cards are about 37 x 52 points (10 columns across 393 points with small
-gutters). A card face shows only a large rank and suit index in its top
-left corner, red/black.
+gutters). A card face shows a rank and suit index in its top left corner
+and again, upright, in its bottom right corner, red/black (section 18).
 
 1. **Top bar** (about 40 pt): seed, variant, take-back button with counts
    (section 9), menu button.
@@ -425,23 +425,37 @@ bumps `CACHE_NAME` in `sw.js` and adds new files to its asset list.
    quick second step. Take-back slides in reverse. Off under
    `prefers-reduced-motion` and at 4 moves a second in solver playback.
    Last because it touches move handling; its own commit, easy to revert.
-Stages 1 and 2 shipped together on 2026-10-31 (cache v11): `glyphs.js`
-holds the paths and places the corner indices from the glyph ink boxes
-(margin 0.07 card widths on all four sides; J and Q, which both drop below
-the baseline in Source Serif 4, sit higher at the bottom right). Covered
-Devil's Six cards hide their bottom corner.
-Stage 3 shipped the same day (cache v12): icons built by
-`docs/pwa/make_icons.js` in the churchill repo; the maskable icon keeps
-every card corner inside the central circle (radius 40%). The home page
-link shows `icon.svg`.
-Stage 4 shipped the same day (cache v14), in its own commit: `play.js`
-`slideTrail` works out each moved card's place before the move, after it
-and after the automatic Aces (checked against the engine in the tests);
-`app.js` flies a copy of each card over the table (`#slides`) while the
-real card at its new place is hidden and a foundation slot keeps showing
-its old card. Move 170 ms, automatic Aces 120 ms after it, dealt cards
-15 ms apart; take-back and the playback's step back run the same slides
-backwards. Off under `prefers-reduced-motion` and at 4 moves a second.
-
 5. **Polish.** Menu and take-back buttons drawn as SVG icons. Update this
    section with what shipped, and the analysis repo's `docs/pwa/README.md`.
+
+### What shipped (all on 2026-10-31)
+
+All five stages are live; the plan above is complete.
+
+- **Stages 1-2** (cache v11): `glyphs.js` holds the suit and rank paths
+  and places the corner indices from the glyph ink boxes (margin 0.07 card
+  widths on all four sides; J and Q, which both drop below the baseline in
+  Source Serif 4, sit higher at the bottom right). Covered Devil's Six
+  cards hide their bottom corner. Ranks were extracted by
+  `docs/pwa/extract_ranks.py` in the churchill repo.
+- **Stage 3** (cache v12; v13 put the PNG icons first in the manifest so
+  Firefox's Add to Home Screen does not fall back to a monogram): icons
+  built by `docs/pwa/make_icons.js` in the churchill repo; the maskable
+  icon keeps every card corner inside the central circle (radius 40%). The
+  home page link shows `icon.svg`.
+- **Stage 4** (cache v14, its own commit so it can be reverted alone):
+  `play.js` `slideTrail` works out each moved card's place before the
+  move, after it and after the automatic Aces (checked against the engine
+  in the tests); `app.js` flies a copy of each card over the table
+  (`#slides`) while the real card at its new place is hidden and a
+  foundation slot keeps showing its old card. Move 170 ms, automatic Aces
+  120 ms after it, dealt cards 15 ms apart; take-back and the playback's
+  step back run the same slides backwards. Off under
+  `prefers-reduced-motion` and at 4 moves a second. Known small effects: a
+  Devil's Six card keeps its stacked face in flight; the counts ("Up",
+  stock) change at once; other cards in a pile whose spacing is squeezed
+  jump rather than slide.
+- **Stage 5** (cache v15): take-back and menu buttons drawn as inline SVG
+  strokes (`.ico`, `currentColor`, so the take-back icon turns amber with
+  the button when the next take-back counts) instead of the text
+  characters U+21B6 and U+2630.
