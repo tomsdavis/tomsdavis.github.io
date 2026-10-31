@@ -1,6 +1,6 @@
 // Churchill Solitaire: UI, persistence and the solver worker.
 
-import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, SUITS, validSeed } from './core.js';
+import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, SUITS, validSeed, lossText } from './core.js';
 import { suitSvg, rankSvg, faceHTML } from './glyphs.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
@@ -415,10 +415,11 @@ const findWinnable = async (variant) => {
 
 // ============= Help from the solver =============
 
-const NO_LINE = {
-  lost: "This deal can't be won: the Devil's Six can't all go up in order.",
-  unknown: 'No winning line found from here within 30 s (it may still be winnable).',
-};
+// Why the solver gave no line: which check proved the loss, or that it
+// ran out of time.
+const noLine = (r) => (r.result === 'lost'
+  ? lossText(r.why, pos.devilNext < lay.devil.length ? lay.devil[pos.devilNext] : 0)
+  : 'No winning line found from here within 30 s (it may still be winnable).');
 
 // Ask the solver for a winning line from here; null if cancelled.
 const findLine = async (what) => {
@@ -450,7 +451,7 @@ const describeMove = (code) => {
 const hint = async () => {
   const r = await findLine('hint');
   if (!r) return;
-  if (r.result !== 'winnable') { toast(NO_LINE[r.result]); return; }
+  if (r.result !== 'winnable') { toast(noLine(r)); return; }
   const code = r.line[0];
   rec = withHint(rec, code);
   persist();
@@ -469,7 +470,7 @@ const checkWinnable = async () => {
   if (!r) return;
   rec = withCheck(rec, r.result);
   persist();
-  toast(r.result === 'winnable' ? 'Still winnable from here' : NO_LINE[r.result]);
+  toast(r.result === 'winnable' ? 'Still winnable from here' : noLine(r));
 };
 
 const SPEED_MS = { 4: 250, 2: 500, 1: 1000, 0.5: 2000 };
@@ -477,7 +478,7 @@ const SPEED_MS = { 4: 250, 2: 500, 1: 1000, 0.5: 2000 };
 const solveFromHere = async () => {
   const r = await findLine('solve');
   if (!r) return;
-  if (r.result !== 'winnable') { toast(NO_LINE[r.result]); return; }
+  if (r.result !== 'winnable') { toast(noLine(r)); return; }
   rec = withAssist(rec);
   persist();
   sel = null;
@@ -624,8 +625,11 @@ function render() {
     sv.textContent = LIVE_TEXT[state];
     sv.title = 'Whether the game can still be won from here, with every card known';
   } else {
-    const shown = settings.solv === 'known' || settings.solv === 'live' || (settings.solv === 'request' && rec.solv?.shownAtMove != null) || rec.result;
-    sv.hidden = settings.solv === 'never' && !rec.result;
+    // Show and On request answer for the deal as dealt, so the flag is up
+    // only while the board is as dealt (and again at the end); once play
+    // starts, "Still winnable?" in the menu answers for the position.
+    const shown = settings.solv === 'known' || (settings.solv === 'request' && rec.solv?.shownAtMove != null) || rec.result;
+    sv.hidden = !rec.result && (settings.solv === 'never' || rec.line.length > 0);
     sv.className = `solv ${solv.state}`;
     sv.textContent = shown ? SOLV_TEXT[solv.state] : 'Winnable?';
     sv.title = 'Whether the deal can be won with every card known';
@@ -825,7 +829,7 @@ const wire = () => {
   $('closeSheet').onclick = closeMenu;
   $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeMenu(); };
   $('solv').onclick = () => {
-    if (settings.solv !== 'request' || rec.solv?.shownAtMove != null) return;
+    if (settings.solv !== 'request' || rec.solv?.shownAtMove != null || rec.line.length > 0 || rec.result) return;
     rec = { ...rec, solv: { result: rec.solv?.result ?? null, shownAtMove: rec.moves } };
     persist();
     render();

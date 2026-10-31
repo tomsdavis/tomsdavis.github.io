@@ -4,6 +4,7 @@
 
 import {
   loadCore, landing, decodeMove, encodeMove, rank, suit, cardName, makeCard, validSeed, rankText, SUITS,
+  decodeLoss, lossText,
 } from './core.js';
 import { SUIT_PATH, RANK_PATH, CAP, suitSvg, rankSvg, FACE, SUIT_BOX, rowInk, corners, rankWidth, STACK_W, faceHTML } from './glyphs.js';
 import {
@@ -285,8 +286,15 @@ describe('Solver', () => {
       assert(core.position().won, 'not won');
     }
   });
-  test('a Devil\'s Six order loss is proven', () => {
-    assertEqual(solver.solve(12, false, 1000, 1).result, 'lost');
+  test('a Devil\'s Six order loss is proven, naming the card', () => {
+    const r = solver.solve(12, false, 1000, 1);
+    assertEqual(r.result, 'lost');
+    assertEqual(r.why.kind, 'devil');
+    assert(r.why.card > 0, 'no card named');
+    assert(lossText(r.why).startsWith("This deal can't be won: the Devil's Six can't all go up in order. By the time the "), lossText(r.why));
+  });
+  test('a win has no loss reason', () => {
+    assertEqual(solver.solve(1, false, 1_000_000, 5000).why, null);
   });
 });
 
@@ -303,12 +311,27 @@ describe('Live indicator', () => {
     core.newGame(3, false);
     while (core.play(2) >= 0);
     assertEqual(core.checkCurrent(100_000, 100).result, 'unknown');
-    assertEqual(core.checkCurrent(100_000, 100, 1_000_000).result, 'lost');
+    const r = core.checkCurrent(100_000, 100, 1_000_000);
+    assertEqual(r.result, 'lost');
+    assertEqual(r.why.kind, 'searched');
+    assertEqual(lossText(r.why), "This game can't be won from here: every line of play from here has been searched.");
   });
-  test('checkCurrent: the dead-end test proves a loss with no search', () => {
+  test('checkCurrent: the dead-end test proves a loss with no search, naming a card', () => {
     core.newGame(5, false);
     while (core.play(2) >= 0);
-    assertEqual(core.checkCurrent(1, 1).result, 'lost');
+    const r = core.checkCurrent(1, 1);
+    assertEqual(r.result, 'lost');
+    assertEqual(r.why.kind, 'stuck');
+    assert(r.why.card > 0, 'no card named');
+  });
+  test('loss messages', () => {
+    const c5d = makeCard(5, 'd'), c9h = makeCard(9, 'h');
+    assertEqual(decodeLoss(2 | (c5d << 8)).kind, 'stuck');
+    assertEqual(decodeLoss(2 | (c5d << 8)).card, c5d);
+    assertEqual(lossText({ kind: 'stuck', card: c5d }, c5d), `This game can't be won from here: the ${cardName(c5d)} in the Devil's Six can never go up.`);
+    assertEqual(lossText({ kind: 'stuck', card: c5d }, c9h), `This game can't be won from here: the ${cardName(c5d)} can never reach the foundations.`);
+    assertEqual(lossText({ kind: 'devil', card: c9h }), `This deal can't be won: the Devil's Six can't all go up in order. By the time the ${cardName(c9h)} is due, both heart foundation piles will be past it.`);
+    assertEqual(lossText(null), "This game can't be won from here.");
   });
   test('checkCurrent: one deal before the end a full search proves a loss', () => {
     core.newGame(10, false);

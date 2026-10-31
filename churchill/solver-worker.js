@@ -4,7 +4,7 @@
 // from the game's current position; game is the app's record) or
 // { id, kind: 'check', game, limit, tries, full } (can the game still be won?
 // for the live indicator; the line is not simplified).
-// Messages out: { id, result, line, ms }. The app terminates the worker when
+// Messages out: { id, result, line, why, ms }. The app terminates the worker when
 // its time budget runs out.
 
 import { loadCore } from './core.js';
@@ -15,10 +15,10 @@ const core = loadCore(fetch('core.wasm'));
 self.onmessage = async ({ data }) => {
   const c = await core;
   const t = performance.now();
-  const { result, line } = data.kind === 'line'
+  const { result, line, why } = data.kind === 'line'
     ? (replay(c, data.game), c.solveCurrent(data.limit, data.tries, data.depth, data.budget))
     : data.kind === 'check'
       ? (replay(c, data.game), c.checkCurrent(data.limit, data.tries, data.full))
       : c.solve(data.seed, data.natural, data.limit, data.tries);
-  self.postMessage({ id: data.id, result, line, ms: Math.round(performance.now() - t) });
+  self.postMessage({ id: data.id, result, line, why, ms: Math.round(performance.now() - t) });
 };

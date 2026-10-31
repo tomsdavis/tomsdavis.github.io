@@ -16,6 +16,36 @@ export const rankText = (c) => ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9',
 // presentation) so phones do not draw it as an emoji.
 export const cardName = (c) => rankText(c) + GLYPH[suit(c)] + '\uFE0E';
 
+// Why the core answered Lost (its lost_reason()): the proof, and the card
+// it names (0: none). 'devil': the Devil's Six order check, the card that
+// can't go up in its turn; 'stuck': the dead-end test, a card that can
+// never go up; 'searched': a full search of every line.
+const LOSS_KIND = [null, 'devil', 'stuck', 'searched'];
+export const decodeLoss = (r) => ({ kind: LOSS_KIND[r & 255] ?? null, card: (r >> 8) & 255 });
+
+const SUIT_WORD = { c: 'club', d: 'diamond', h: 'heart', s: 'spade' };
+
+// The message for a loss with reason `why`; `devilFront` is the next
+// Devil's Six card to go up (0 if none), so a stuck card that is that card
+// is named as the Devil's Six card.
+export const lossText = (why, devilFront = 0) => {
+  const card = why?.card ? cardName(why.card) : null;
+  switch (why?.kind) {
+    case 'devil':
+      return card
+        ? `This deal can't be won: the Devil's Six can't all go up in order. By the time the ${card} is due, both ${SUIT_WORD[suit(why.card)]} foundation piles will be past it.`
+        : "This deal can't be won: the Devil's Six can't all go up in order.";
+    case 'stuck':
+      if (!card) break;
+      return why.card === devilFront
+        ? `This game can't be won from here: the ${card} in the Devil's Six can never go up.`
+        : `This game can't be won from here: the ${card} can never reach the foundations.`;
+    case 'searched':
+      return "This game can't be won from here: every line of play from here has been searched.";
+  }
+  return "This game can't be won from here.";
+};
+
 // ============= Moves =============
 
 // Move codes: kind in bits 0-3, from pile 4-7, to pile 8-11, count 16-23.
@@ -90,6 +120,11 @@ export const loadCore = async (from) => {
     const b = bytes(4 * n);
     return Array.from({ length: n }, (_, i) => (b[4 * i] | (b[4 * i + 1] << 8) | (b[4 * i + 2] << 16) | (b[4 * i + 3] << 24)) >>> 0);
   };
+  const answer = (r) => ({
+    result: SOLVE[r],
+    line: r === 0 ? codes(w.buf_len() / 4) : [],
+    why: SOLVE[r] === 'lost' ? decodeLoss(w.lost_reason()) : null,
+  });
   return {
     newGame: (seed, natural) => w.new_game(...splitSeed(seed), natural ? 1 : 0),
     switchNatural: () => w.switch_natural(),
@@ -99,17 +134,18 @@ export const loadCore = async (from) => {
     undoCost: () => w.undo_cost(),
     position: () => decodePosition(bytes(w.position())),
     layout: () => decodeLayout(bytes(w.layout())),
-    // { result: 'winnable' | 'lost' | 'unknown', line: [move codes] }
+    // { result: 'winnable' | 'lost' | 'unknown', line: [move codes],
+    // why: the reason for a loss (decodeLoss), or null }
     solve: (seed, natural, limit, tries) => {
       const r = w.solve(...splitSeed(seed), natural ? 1 : 0, limit, tries);
-      return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
+      return answer(r);
     },
     // A winning line from the current position, as moves the player can
     // make, simplified (shortcuts searched `depth` moves ahead, `budget`
     // moves of work). { result, line }.
     solveCurrent: (limit, tries, depth, budget) => {
       const r = w.solve_current(limit, tries, depth, budget);
-      return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
+      return answer(r);
     },
     // Can the game in progress still be won? As solveCurrent but the line
     // is not simplified, so the answer comes sooner. Once the stock is gone,
@@ -117,7 +153,7 @@ export const loadCore = async (from) => {
     // which can prove the loss (0: none). { result, line }.
     checkCurrent: (limit, tries, full = 0) => {
       const r = w.check_current(limit, tries, full);
-      return { result: SOLVE[r], line: r === 0 ? codes(w.buf_len() / 4) : [] };
+      return answer(r);
     },
   };
 };

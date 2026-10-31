@@ -204,7 +204,21 @@ can win it.
   be 1.5 to 3 times slower.
 - **Indicator.** After a deal is chosen the top bar shows *Checking*, then
   the answer. A setting chooses: Live, show when known (default), show on
-  request, or never.
+  request, or never. Show and On request answer for the deal as dealt, so
+  (2026-10-31) the indicator is shown only while the board is as dealt
+  (no moves on it; again after taking back to the start) and at the end
+  of the game; On request is tapped before the first move. Once play has
+  started, "Still winnable?" in the menu answers for the position. (Shown
+  all game, "Winnable" read as a claim about the position: seed 1 natural
+  showed it in a lost position.)
+- **Loss messages** (2026-10-31). Hint, Still winnable? and Solve from
+  here say which check proved a loss (core `lost_reason`): the Devil's
+  Six order check ("This deal can't be won: the Devil's Six can't all go
+  up in order. By the time the 9♥ is due, both heart foundation piles
+  will be past it."), the dead-end test, naming a card that can never go
+  up (the front Devil's Six card if it is one: "the 5♦ in the Devil's Six
+  can never go up"; otherwise the lowest), or a full search ("every line
+  of play from here has been searched").
 - **Live** (added 2026-10-30; opt in for every variant). The indicator
   follows the game: after each move it answers for the position on the
   board, with every card known. States: *Checking*, *Winnable* (green),
