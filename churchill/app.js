@@ -1,6 +1,7 @@
 // Churchill Solitaire: UI, persistence and the solver worker.
 
-import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, GLYPH, SUITS, validSeed } from './core.js';
+import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, SUITS, validSeed } from './core.js';
+import { suitSvg, rankSvg, faceHTML } from './glyphs.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
@@ -444,13 +445,15 @@ const clearHistory = () => {
 
 // ============= Rendering =============
 
+// Rank and suit drawn as SVG (glyphs.js), side by side.
+const indexHTML = (c) => `${rankSvg(rankText(c))}${suitSvg(suit(c))}`;
+// Upright corners (glyphs.js faceHTML): rank and suit top left, suit and
+// rank bottom right, no centre pip.
 const cardEl = (c, extra = '') =>
-  el('div', `card ${isRed(c) ? 'red' : ''} ${extra}`,
-    `<span class="idx">${rankText(c)}${GLYPH[suit(c)]}</span><span class="pip">${GLYPH[suit(c)]}</span>`);
+  el('div', `card ${isRed(c) ? 'red' : ''} ${extra}`, faceHTML(rankText(c), suit(c)));
 // Rank above suit, for cards that overlap sideways (the Devil's Six).
 const stackedCardEl = (c, extra = '') =>
-  el('div', `card stack ${isRed(c) ? 'red' : ''} ${extra}`,
-    `<span class="idx">${rankText(c)}<br>${GLYPH[suit(c)]}</span><span class="pip">${GLYPH[suit(c)]}</span>`);
+  el('div', `card ${isRed(c) ? 'red' : ''} ${extra}`, faceHTML(rankText(c), suit(c), true));
 
 // Foundation slots shown in this suit order, alternating colours.
 const SLOT_ORDER = ['s', 's', 'h', 'h', 'c', 'c', 'd', 'd'];
@@ -520,7 +523,7 @@ function render() {
     const h = slotHeight(i), hit = i === hitSlot;
     const isHint = hit && hintCode !== null && hintCode === tg.found;
     const cls = `${hit ? 'target' : ''} ${isHint ? 'hint' : ''}`;
-    const e = h ? cardEl(h | (SUITS.indexOf(s) << 4), cls) : el('div', `slot ${cls}`, GLYPH[s]);
+    const e = h ? cardEl(h | (SUITS.indexOf(s) << 4), cls) : el('div', `slot ${cls}`, suitSvg(s, ''));
     e.onclick = () => { if (hit) playCode(tg.found); };
     cell.append(e);
     top.append(cell);
@@ -635,7 +638,7 @@ function render() {
         const hit = land2.find((x) => x.row === r && x.col === p);
         if (!hit) { row.append(el('div', `c ${skips[p] ? 'skip' : 'none'}`)); continue; }
         const moved = prevLanding.has(hit.index) && prevLanding.get(hit.index) !== p;
-        const t = `${rankText(hit.card)}${r === 0 ? '<br>' : ''}${GLYPH[suit(hit.card)]}`;
+        const t = indexHTML(hit.card);
         row.append(el('div', `c ${isRed(hit.card) ? 'red' : ''} ${moved ? 'flash' : ''}`, t));
       }
       rows.append(row);

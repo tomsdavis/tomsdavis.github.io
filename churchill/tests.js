@@ -3,8 +3,9 @@
 // deno run --allow-read churchill/tests.js
 
 import {
-  loadCore, landing, decodeMove, encodeMove, rank, suit, cardName, makeCard, validSeed,
+  loadCore, landing, decodeMove, encodeMove, rank, suit, cardName, makeCard, validSeed, rankText, SUITS,
 } from './core.js';
+import { SUIT_PATH, RANK_PATH, CAP, suitSvg, rankSvg, FACE, SUIT_BOX, rowInk, corners, rankWidth, STACK_W, faceHTML } from './glyphs.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
@@ -64,6 +65,8 @@ const solver = await loadCore(await wasmBytes());
 const SEED1_PILES = ['Jc', '9s 8s', 'Kh 6d 5h', '7s 5c 5s 4h', 'Td 4s 3d 9c 9h', 'Td 7d Ks 6h Js', 'Ah 6s 2s 3c', '3s Ad 8d', 'Qc 9s', '8c'];
 const RANKS = 'A23456789TJQK';
 const parse = (s) => makeCard(RANKS.indexOf(s[0]) + 1, s[1]);
+// Card names in sentences: each text suit followed by U+FE0E.
+const txt = (s) => s.replace(/[♣♦♥♠]/g, '$&\uFE0E');
 
 // ============= Tests =============
 
@@ -72,7 +75,8 @@ describe('Cards and moves', () => {
     const c = parse('Qh');
     assertEqual(rank(c), 12);
     assertEqual(suit(c), 'h');
-    assertEqual(cardName(c), 'Q♥');
+    assertEqual(cardName(c), txt('Q♥'));
+    assertEqual(cardName(c), 'Q\u2665\uFE0E');
   });
   test('move codes round-trip', () => {
     const m = { kind: 'run', from: 3, to: 7, count: 12 };
@@ -87,6 +91,76 @@ describe('Cards and moves', () => {
   });
 });
 
+describe('Drawn glyphs', () => {
+  const ALL = SUITS.flatMap((s) => Array.from({ length: 13 }, (_, i) => makeCard(i + 1, s)));
+  test('every card value has a rank and a suit path', () => {
+    assertEqual(ALL.length, 52);
+    ALL.forEach((c) => {
+      assert(/^M[-0-9 .A-Za-z]+Z$/.test(RANK_PATH[rankText(c)]?.d ?? ''), `rank path for ${cardName(c)}`);
+      assert(/^M[-0-9 .A-Za-z]+Z$/.test(SUIT_PATH[suit(c)] ?? ''), `suit path for ${cardName(c)}`);
+    });
+  });
+  test('lookups agree with core.js', () => {
+    assertEqual(Object.keys(SUIT_PATH).sort().join(''), [...SUITS].sort().join(''));
+    const names = Array.from({ length: 13 }, (_, i) => rankText(makeCard(i + 1, 's')));
+    assertEqual(Object.keys(RANK_PATH).sort().join(' '), [...names].sort().join(' '));
+  });
+  test('ranks sit on one baseline under the cap line', () => {
+    Object.entries(RANK_PATH).forEach(([r, g]) => {
+      assert(g.x1 > g.x0 && g.y0 < 0 && g.y0 >= -CAP - 10, `${r} top`);
+      assert(g.y1 <= 20 || r === 'J' || r === 'Q', `${r} bottom`);
+    });
+  });
+  test('svg builders', () => {
+    assert(suitSvg('h').includes(SUIT_PATH.h) && suitSvg('h').startsWith('<svg class="si"'));
+    assert(rankSvg('10').includes(`viewBox="77 ${-CAP} 971 ${CAP}"`));
+    assert(suitSvg('c', 'pip').startsWith('<svg class="pip"'));
+  });
+});
+
+describe('Card faces', () => {
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const ranks = Object.keys(RANK_PATH);
+  test('corner ink sits M from every edge', () => {
+    const { M, H, CH } = FACE;
+    ranks.forEach((r) => SUITS.forEach((s) => {
+      const [top, bottom] = rowInk(r, s);
+      const { tl, br } = corners(r, s);
+      assert(near(tl.top + top, M) && near(br.top + bottom, CH - M), `${r}${s} top/bottom`);
+      assert(near(tl.left, M) && near(br.right, M), `${r}${s} left/right`);
+      assert(bottom > top && top > -0.01 && bottom <= H * 1.4, `${r}${s} ink box`); // Q rises a little above the cap line
+    }));
+  });
+  test('the two corners never meet', () => {
+    const { M, G, S, CH } = FACE;
+    ranks.forEach((r) => {
+      const w = M + rankWidth(r) + G + S;
+      assert(w <= 1 - M, `${r} index width ${w}`);
+      SUITS.forEach((s) => {
+        const { tl, br } = corners(r, s);
+        assert(tl.top + FACE.H < br.top, `${r}${s} overlap`);
+        assert(br.top + rowInk(r, s)[1] <= CH - M + 1e-9);
+      });
+    });
+  });
+  test('the top index fits the strip a pile shows', () => {
+    // pileOffsets: face-up cards step at least 0.46 card widths.
+    ranks.forEach((r) => SUITS.forEach((s) => assert(corners(r, s).tl.top + FACE.H <= 0.46, `${r}${s}`)));
+  });
+  test('stacked index fits the Devil\'s Six step', () => {
+    // app.js: the Devil's Six cards overlap 0.6 card widths apart.
+    assert(FACE.M + STACK_W <= 0.6 - 0.04);
+    ranks.forEach((r) => assert(near(corners(r, 'h', true).tl.top + (RANK_PATH[r].y0 + CAP) / CAP * FACE.H, FACE.M)));
+  });
+  test('face HTML has both corners, no pip', () => {
+    const h = faceHTML('Q', 'h');
+    assertEqual((h.match(/class="idx/g) || []).length, 2);
+    assert(!h.includes('pip'));
+    assert(faceHTML('10', 's', true).includes('idx st'));
+    assert(Object.keys(SUIT_BOX).every((s) => SUIT_PATH[s]));
+  });
+});
+
 describe('Deal from seed', () => {
   test('seed 1 lays out as in the analysis code', () => {
     core.newGame(1, false);
@@ -96,9 +170,9 @@ describe('Deal from seed', () => {
       assertEqual(p.down, p.cards.length - 1, `pile ${i + 1} face down`);
     });
     const lay = core.layout();
-    assertEqual(lay.devil.map(cardName).join(' '), 'J♣ 5♦ A♠ Q♥ 9♥ K♣');
+    assertEqual(lay.devil.map(cardName).join(' '), txt('J♣ 5♦ A♠ Q♥ 9♥ K♣'));
     assertEqual(lay.stock.length, 68);
-    assertEqual(cardName(lay.stock[0]), '10♣');
+    assertEqual(cardName(lay.stock[0]), txt('10♣'));
   });
   test('large seeds split into two halves', () => {
     core.newGame(2 ** 40 + 5, false);

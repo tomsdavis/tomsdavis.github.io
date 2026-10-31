@@ -425,5 +425,11 @@ bumps `CACHE_NAME` in `sw.js` and adds new files to its asset list.
    quick second step. Take-back slides in reverse. Off under
    `prefers-reduced-motion` and at 4 moves a second in solver playback.
    Last because it touches move handling; its own commit, easy to revert.
+Stages 1 and 2 shipped together on 2026-10-31 (cache v11): `glyphs.js`
+holds the paths and places the corner indices from the glyph ink boxes
+(margin 0.07 card widths on all four sides; J and Q, which both drop below
+the baseline in Source Serif 4, sit higher at the bottom right). Covered
+Devil's Six cards hide their bottom corner.
+
 5. **Polish.** Menu and take-back buttons drawn as SVG icons. Update this
    section with what shipped, and the analysis repo's `docs/pwa/README.md`.

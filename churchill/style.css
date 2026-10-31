@@ -9,17 +9,20 @@
   --ink: #e8efe9;
   --ink-dim: #9fb6ab;
   --face: #fbfaf5;
+  --face-hi: #fffdf7;
+  --face-lo: #f2ede0;
   --face-off: #b7c2bb;
   --red: #c42a30;
   --black: #1b1d1c;
   --back: #6d2b3a;
   --back-line: #8a4152;
+  --back-rim: rgba(239,226,196,.75);
+  --back-lattice: rgba(255,230,210,.09);
   --target: #f0b23a;
   --good: #7fd4a0;
   --bad: #e58b7a;
   --warn: #e5c07a;
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-idx: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --cw: 36px;
   --gap: 2px;
   color-scheme: dark;
@@ -33,7 +36,11 @@ body {
   box-sizing: border-box; overflow: hidden;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-.frame { width: 100%; height: 100%; background: var(--felt); display: flex; overflow: hidden; position: relative; }
+.frame { width: 100%; height: 100%;
+  /* Lit felt: faint noise over a soft radial light. */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 90% 70% at 50% 28%, #1f483b 0%, var(--felt) 55%, var(--felt-deep) 100%); display: flex; overflow: hidden; position: relative; }
 .frame.portrait { flex-direction: column; max-width: 680px; }
 .frame.landscape { flex-direction: row; max-width: 1500px; max-height: 1000px; }
 @media (min-width: 720px) and (min-height: 500px) { .frame.landscape, .frame.portrait { border-radius: 14px; box-shadow: 0 0 0 1px var(--felt-line); } }
@@ -70,20 +77,29 @@ button:disabled { opacity: .4; cursor: default; }
 /* cards */
 .card {
   position: absolute; left: 0; width: var(--cw); height: calc(var(--cw) * 1.4); border-radius: calc(var(--cw) * .11);
-  background: var(--face); color: var(--black); box-shadow: 0 0 0 .5px rgba(0,0,0,.45), 0 1px 1px rgba(0,0,0,.25);
-  font-family: var(--font-idx); font-weight: 700; overflow: hidden; cursor: pointer;
+  background: linear-gradient(170deg, var(--face-hi), var(--face-lo)); color: var(--black);
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.7);
+  overflow: hidden; cursor: pointer;
 }
 .card.red { color: var(--red); }
-.card .idx { position: absolute; left: calc(var(--cw) * .07); top: 0; font-size: calc(var(--cw) * .4); line-height: 1.1; letter-spacing: -.06em; white-space: nowrap; }
-.card.stack .idx { text-align: center; width: calc(var(--cw) * .56); left: 0; line-height: 1.05; letter-spacing: -.08em; }
-.card .pip { position: absolute; right: calc(var(--cw) * .08); bottom: 1px; font-size: calc(var(--cw) * .55); line-height: 1; }
-.card.down { background: repeating-linear-gradient(45deg, var(--back) 0 3px, var(--back-line) 3px 5px); }
+/* Corner indices: glyphs.js places them (inline left/right/top). */
+.card .idx { position: absolute; display: flex; align-items: center; gap: calc(var(--cw) * .03); height: calc(var(--cw) * .29); }
+.card .idx.st { flex-direction: column; height: auto; }
+.card .ri, .prow .ri { height: calc(var(--cw) * .29); width: auto; fill: currentColor; flex: none; }
+.card .si, .prow .si { height: calc(var(--cw) * .27); width: calc(var(--cw) * .27); fill: currentColor; flex: none; }
+/* Card back (face-down cards and the Deal button): burgundy lattice inside a thin cream line. */
+.card.down, .stockbtn {
+  background-color: var(--back);
+  background-image: repeating-linear-gradient(45deg, var(--back-lattice) 0 1px, transparent 1px 5px), repeating-linear-gradient(-45deg, var(--back-lattice) 0 1px, transparent 1px 5px);
+}
+.card.down { box-shadow: inset 0 0 0 calc(var(--cw) * .06) var(--back), inset 0 0 0 calc(var(--cw) * .06 + 1px) var(--back-rim), 0 0 0 .5px rgba(0,0,0,.6), 0 1px 1px rgba(0,0,0,.25); }
 .card.down > * { display: none; }
 .card.off { background: var(--face-off); }
-.card.off .idx, .card.off .pip { opacity: .7; }
+.card.off .idx { opacity: .7; }
 .card.sel { box-shadow: 0 0 0 2px var(--target); transform: translateY(-3px); }
 .card.target { box-shadow: 0 0 0 2px var(--target); }
-.slot { position: absolute; left: 0; width: var(--cw); height: calc(var(--cw) * 1.4); box-sizing: border-box; border-radius: calc(var(--cw) * .11); border: 1px dashed var(--felt-line); color: var(--felt-line); display: grid; place-items: center; font-size: calc(var(--cw) * .5); }
+.slot { position: absolute; left: 0; width: var(--cw); height: calc(var(--cw) * 1.4); box-sizing: border-box; border-radius: calc(var(--cw) * .11); border: 1px dashed var(--felt-line); color: var(--felt-line); display: grid; place-items: center; }
+.slot svg { width: calc(var(--cw) * .42); height: calc(var(--cw) * .42); fill: currentColor; }
 .slot.target { border: 2px solid var(--target); color: var(--target); }
 
 /* foundations, stock, Devil's Six */
@@ -92,12 +108,13 @@ button:disabled { opacity: .4; cursor: default; }
 .portrait .top { padding-top: 2px; padding-bottom: 6px; }
 .landscape .top { grid-template-columns: repeat(4, var(--cw)); padding: 0; justify-content: start; }
 .stockbtn { position: relative; border: 0; padding: 0; border-radius: calc(var(--cw) * .11); height: calc(var(--cw) * 1.4);
-  background: repeating-linear-gradient(45deg, var(--back) 0 3px, var(--back-line) 3px 5px); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+  box-shadow: inset 0 0 0 calc(var(--cw) * .06) var(--back), inset 0 0 0 calc(var(--cw) * .06 + 1px) var(--back-rim);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
 .portrait .stockbtn { grid-column: 9 / 11; margin-left: 6px; }
 .landscape .stockbtn { width: var(--cw); }
 .stockbtn b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .stockbtn span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
-.stockbtn:disabled { background: none; border: 1px dashed var(--felt-line); opacity: 1; color: var(--ink-dim); }
+.stockbtn:disabled { background: none; box-shadow: none; border: 1px dashed var(--felt-line); opacity: 1; color: var(--ink-dim); }
 .devilrow { flex: none; display: flex; align-items: flex-start; padding: 0 8px 6px; gap: 8px; }
 .landscape .devilrow { padding: 0; flex-wrap: wrap; justify-content: space-between; row-gap: 6px; }
 .stockslot { display: none; width: var(--cw); flex: none; }
@@ -108,6 +125,8 @@ button:disabled { opacity: .4; cursor: default; }
 .landscape .status { flex: 1 1 0; order: 3; padding-top: 4px; }
 .status b { color: var(--ink); font-weight: 500; }
 .devil { position: relative; height: calc(var(--cw) * 1.4); flex: none; }
+/* Covered Devil's Six cards: only the next card (last, on top) shows its bottom corner. */
+.devil .card:not(:last-child) .idx.br { display: none; }
 
 /* tableau */
 .tableau { flex: 1 1 auto; min-height: 100px; position: relative; }
@@ -121,9 +140,13 @@ button:disabled { opacity: .4; cursor: default; }
 .rows { overflow-y: auto; flex: 1 1 auto; padding-bottom: 6px; overscroll-behavior: contain; scrollbar-width: none; }
 .rows::-webkit-scrollbar { display: none; }
 .prow + .prow { margin-top: 2px; }
-.prow .c { height: calc(var(--cw) * .5); border-radius: 3px; background: var(--face); color: var(--black); font-family: var(--font-idx); font-weight: 700; font-size: calc(var(--cw) * .36); line-height: calc(var(--cw) * .5); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; letter-spacing: -.04em; }
+.prow .c { height: calc(var(--cw) * .5); border-radius: 3px; background: var(--face); color: var(--black); display: flex; align-items: center; justify-content: center; gap: calc(var(--cw) * .03); overflow: hidden; }
+.prow .c .ri, .prow .c .si { height: calc(var(--cw) * .24); }
+.prow .c .si { width: calc(var(--cw) * .24); }
 .prow .c.red { color: var(--red); }
-.prow.next .c { height: calc(var(--cw) * .82); line-height: calc(var(--cw) * .4); font-size: calc(var(--cw) * .4); padding-top: 1px; box-sizing: border-box; box-shadow: 0 0 0 1px var(--target); }
+.prow.next .c { height: calc(var(--cw) * .82); flex-direction: column; gap: calc(var(--cw) * .05); box-shadow: 0 0 0 1px var(--target); }
+.prow.next .c .ri, .prow.next .c .si { height: calc(var(--cw) * .27); }
+.prow.next .c .si { width: calc(var(--cw) * .27); }
 .prow.next .c.skip, .prow.next .c.none { box-shadow: none; }
 .prow .c.skip { background: repeating-linear-gradient(-45deg, transparent 0 4px, var(--felt-line) 4px 5px); }
 .prow .c.none { background: none; }

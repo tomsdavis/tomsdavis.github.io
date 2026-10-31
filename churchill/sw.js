@@ -2,7 +2,7 @@
 // another, so they must all come from the same version: serving cached
 // copies first, or letting the browser's HTTP cache (GitHub Pages allows
 // 10 minutes) answer, can mix old and new files and stop the app loading.
-const CACHE_NAME = 'churchill-v10';
+const CACHE_NAME = 'churchill-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './app.js',
   './play.js',
   './core.js',
+  './glyphs.js',
   './solver-worker.js',
   './core.wasm',
   './core-version.txt',

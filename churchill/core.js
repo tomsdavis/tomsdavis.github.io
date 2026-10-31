@@ -12,7 +12,9 @@ export const suit = (c) => SUITS[c >> 4];
 export const isRed = (c) => (c >> 4) === 1 || (c >> 4) === 2;
 export const makeCard = (r, s) => r | (SUITS.indexOf(s) << 4);
 export const rankText = (c) => ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'][rank(c)];
-export const cardName = (c) => rankText(c) + GLYPH[suit(c)];
+// For sentences (hints, solver lines): a text suit, then U+FE0E (text
+// presentation) so phones do not draw it as an emoji.
+export const cardName = (c) => rankText(c) + GLYPH[suit(c)] + '\uFE0E';
 
 // ============= Moves =============
 
