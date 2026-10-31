@@ -348,3 +348,82 @@ core version.
 - Clear history and export; Hint, Still winnable? and Solve from here,
   with solver lines simplified in the core; a solver finish counts as
   solved, not won.
+
+## 18. Visual design (settled 2026-10-31)
+
+Chosen with the user from the mock-up page
+https://claude.ai/artifact/TerjoQsm3PrKnqMUnuLW9Y (private; read it with
+the Artifact tool's `read` action for exact CSS and SVG). Choices:
+
+| Item | Choice |
+|---|---|
+| Card face | "Classic": serif index, Source Serif 4 Bold glyph shapes |
+| Corners | Upright corners: rank + suit top left; suit + rank the right way up bottom right; no centre pip |
+| Court cards | Plain (same as number cards) |
+| Card back | Inset: burgundy with a fine lattice inside a thin cream line |
+| Suit colours | Two (red and black) |
+| Felt | Lit: soft radial gradient plus faint noise |
+| Icon | Devil's Six fan: six cards fanned, alternating colours, no text |
+| Movement | Cards slide (about 170 ms) |
+
+Findings behind them:
+- Suits drawn as text characters vary by font (the heart much heavier than
+  the spade, the diamond small; iPhones may show emoji), so suits are
+  drawn as SVG shapes.
+- Georgia has old-style figures (3, 4, 5, 7, 9 drop below the line), which
+  left the bottom-right index touching the edge. Ranks are also drawn as
+  SVG shapes, taken once from Source Serif 4 Bold (SIL Open Font License),
+  so every device shows the same card and margins can be set exactly.
+- The index must stay rank and suit side by side: in a pile only a strip
+  about 0.42 card widths deep shows, and a suit stacked under the rank
+  would be hidden.
+- Mirrored (rotated) corners were rejected: 9 and 6 are confusing upside
+  down. Cards are never shown upside down in the app, so upright corners
+  lose nothing.
+- Measured margins in the mock-up (card width `cw`): top index at left
+  0.07, top 0.02 cw; bottom index at right 0.09, bottom 0.04 cw; Q's bottom
+  index at bottom 0.09 cw so its tail clears the edge. With drawn glyphs,
+  set them from the glyph bounding boxes instead, all four margins equal.
+- Court art: emblems (crown, coronet, cap) stayed legible at phone size;
+  double-ended portraits did not. Plain was chosen.
+- The manifest had no maskable icon, so Android shrinks the icon onto a
+  white disc.
+
+### Plan
+
+Each stage is a commit the user reviews on a phone before the next. Each
+bumps `CACHE_NAME` in `sw.js` and adds new files to its asset list.
+`node churchill/tests.js` passes at every stage. The Rust core and
+`core.wasm` do not change.
+
+1. **Drawn suits and ranks.** `glyphs.js`: the four suits and 13 ranks
+   (A, 2-10, J, Q, K) as SVG paths; ranks extracted once from Source
+   Serif 4 Bold by a script kept outside the deploy (font and licence
+   noted in a comment). Used on card faces, the Devil's Six, foundation
+   slots and the stock panel's mini cards. Card names in sentences (hints,
+   solver lines) keep text suits, followed by U+FE0E so they are not
+   drawn as emoji. Tests: every card value has a path; lookups agree with
+   `core.js`.
+2. **Card faces, backs and felt** (`style.css`, card building in
+   `app.js`). Faces as in the table above, warm ivory with a soft shadow,
+   corner margins checked on enlarged screenshots. The Devil's Six
+   (overlapped sideways, rank above suit) gets the same treatment. Inset
+   back on face-down cards and the Deal button. Lit felt with an inline
+   noise texture. Screenshots before and after, portrait and landscape.
+   Stages 1 and 2 may ship as one deploy.
+3. **Icon.** Fan SVG with no text; PNGs rendered with the pre-installed
+   Playwright browser and committed: 192, 512, apple-touch 180, and a
+   512 maskable version (fan inside the central safe zone, felt to the
+   edge), marked `"purpose": "maskable"` in `manifest.json`. The home
+   page link uses the new icon.
+4. **Sliding moves** (`app.js`). The table is fully re-rendered after each
+   move, so: record the on-screen rectangles of the cards about to move,
+   re-render, then start each moved card from its old place and slide it
+   home (about 170 ms). The move says which cards moved: a run between
+   piles, a card to a foundation slot, a Devil's Six card going up, a deal
+   (stock to each pile). Automatic plays after a move (Aces) slide as a
+   quick second step. Take-back slides in reverse. Off under
+   `prefers-reduced-motion` and at 4 moves a second in solver playback.
+   Last because it touches move handling; its own commit, easy to revert.
+5. **Polish.** Menu and take-back buttons drawn as SVG icons. Update this
+   section with what shipped, and the analysis repo's `docs/pwa/README.md`.
