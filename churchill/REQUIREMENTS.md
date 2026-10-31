@@ -434,6 +434,14 @@ Stage 3 shipped the same day (cache v12): icons built by
 `docs/pwa/make_icons.js` in the churchill repo; the maskable icon keeps
 every card corner inside the central circle (radius 40%). The home page
 link shows `icon.svg`.
+Stage 4 shipped the same day (cache v14), in its own commit: `play.js`
+`slideTrail` works out each moved card's place before the move, after it
+and after the automatic Aces (checked against the engine in the tests);
+`app.js` flies a copy of each card over the table (`#slides`) while the
+real card at its new place is hidden and a foundation slot keeps showing
+its old card. Move 170 ms, automatic Aces 120 ms after it, dealt cards
+15 ms apart; take-back and the playback's step back run the same slides
+backwards. Off under `prefers-reduced-motion` and at 4 moves a second.
 
 5. **Polish.** Menu and take-back buttons drawn as SVG icons. Update this
    section with what shipped, and the analysis repo's `docs/pwa/README.md`.

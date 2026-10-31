@@ -1,7 +1,7 @@
 // Pure game-flow helpers for the UI: legal targets for a selection, layout
 // sizing, pile spacing and game records. No DOM, no storage.
 
-import { decodeMove, rank, suit, SUITS } from './core.js';
+import { decodeMove, rank, suit, SUITS, landing } from './core.js';
 
 // ============= Selection and targets =============
 
@@ -35,6 +35,64 @@ export const slotFor = (pos, card) => {
   const [a, b] = pos.found[s];
   return a === rank(card) - 1 ? 2 * s : b === rank(card) - 1 ? 2 * s + 1 : -1;
 };
+
+// ============= Sliding moves =============
+
+// Where the cards a move shifts go, for sliding them on screen. A place is
+// { pile, index } | { slot } (foundation slot, slotFor numbering) |
+// { devil } (index into the Devil's Six) | { stock: true }. Each card gets
+// three places: before the move, after the move itself, and after the
+// automatic plays (Aces) that follow it. Also returns the position between
+// the two steps as { piles: [{ cards, down }] }.
+export const slideTrail = (pos, lay, code) => {
+  const m = decodeMove(code);
+  const piles = pos.piles.map((p) => ({ cards: [...p.cards], down: p.down }));
+  const found = pos.found.map((f) => [...f]);
+  const up = (card) => {
+    const slot = slotFor({ found }, card);
+    found[slot >> 1][slot % 2]++;
+    return { slot };
+  };
+  const trail = [];
+  const go = (card, from, to) => trail.push({ card, at: [from, to, to] });
+  if (m.kind === 'run') {
+    const src = piles[m.from].cards, dst = piles[m.to].cards;
+    const n = src.length - m.count, base = dst.length;
+    src.splice(n).forEach((card, j) => {
+      dst.push(card);
+      go(card, { pile: m.from, index: n + j }, { pile: m.to, index: base + j });
+    });
+  } else if (m.kind === 'found') {
+    const src = piles[m.from].cards;
+    const card = src.pop();
+    go(card, { pile: m.from, index: src.length }, up(card));
+  } else if (m.kind === 'devil') {
+    const card = lay.devil[pos.devilNext];
+    go(card, { devil: pos.devilNext }, up(card));
+  } else if (m.kind === 'deal') {
+    landing(pos, lay).filter((x) => x.row === 0).forEach(({ card, col }) => {
+      piles[col].cards.push(card);
+      go(card, { stock: true }, { pile: col, index: piles[col].cards.length - 1 });
+    });
+  }
+  const mid = { piles: piles.map((p) => ({ cards: [...p.cards], down: p.down })) };
+  // Automatic plays, in the engine's order (game.rs, settle): each pile in
+  // turn sends up the Aces on its top.
+  piles.forEach((p, i) => {
+    while (p.cards.length && rank(p.cards[p.cards.length - 1]) === 1) {
+      const card = p.cards.pop();
+      const index = p.cards.length;
+      const to = up(card);
+      const t = trail.find((x) => x.at[1].pile === i && x.at[1].index === index);
+      if (t) t.at[2] = to;
+      else trail.push({ card, at: [{ pile: i, index }, { pile: i, index }, to] });
+    }
+  });
+  return { trail, mid, found };
+};
+
+// The same cards sliding back, for a take-back of the move.
+export const reverseTrail = (trail) => trail.map(({ card, at }) => ({ card, at: [at[2], at[1], at[0]] }));
 
 // ============= Layout =============
 

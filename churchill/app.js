@@ -5,7 +5,7 @@ import { suitSvg, rankSvg, faceHTML } from './glyphs.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
-  withHint, withCheck, withAssist, winResult, withPlaybackBack,
+  withHint, withCheck, withAssist, winResult, withPlaybackBack, slideTrail, reverseTrail,
   posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
@@ -208,11 +208,125 @@ const liveAnswer = () => {
   return !a || (a.state === 'unknown' && !a.full) ? { state: 'busy' } : a;
 };
 
+// ============= Sliding moves =============
+
+// The table is rebuilt after every move, so a move slides as follows: note
+// where every card is on screen, make the move and render, then fly a copy
+// of each moved card from its old place to its new one while the real card
+// there is hidden. Automatic plays (Aces) follow as a quick second step.
+const SLIDE_MS = 170, AUTO_MS = 120, DEAL_STAGGER = 15;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const slidesOn = () => !reduceMotion.matches && !(auto && settings.speed === '4');
+let slides = null; // { ghosts, anims, hide: Set(key), hold: Map(key -> { make, saved, ph }) }
+
+// The display slot (SLOT_ORDER) of a foundation slot in slotFor numbering.
+const displaySlot = (s) => SLOT_ORDER.findIndex((x, i) => x === SUITS[s >> 1] && i % 2 === s % 2);
+// The data-loc key of a place (play.js, slideTrail).
+const locKey = (at) => at.pile !== undefined ? `p${at.pile}.${at.index}`
+  : at.slot !== undefined ? `f${displaySlot(at.slot)}` : at.devil !== undefined ? `d${at.devil}` : 'stock';
+const locEl = (key) => $('frame').querySelector(`[data-loc="${key}"]`);
+const snapRects = () => new Map([...$('frame').querySelectorAll('[data-loc]')].map((e) => [e.dataset.loc, e.getBoundingClientRect()]));
+
+// Hide the cards still to arrive; foundation slots show what they held before.
+const applySlideHolds = () => {
+  if (!slides) return;
+  slides.hide.forEach((k) => { const e = locEl(k); if (e) e.style.visibility = 'hidden'; });
+  slides.hold.forEach((h, k) => {
+    const cell = locEl(k);
+    if (!cell || (h.ph && cell.contains(h.ph))) return;
+    h.saved = [...cell.childNodes];
+    h.ph = h.make();
+    cell.replaceChildren(h.ph);
+  });
+};
+
+const endSlides = () => {
+  if (!slides) return;
+  const s = slides;
+  slides = null;
+  s.anims.forEach((a) => a.cancel());
+  s.ghosts.forEach((g) => g.remove());
+  s.hide.forEach((k) => { const e = locEl(k); if (e) e.style.visibility = ''; });
+  s.hold.forEach((h, k) => { const cell = locEl(k); if (cell && h.ph && cell.contains(h.ph)) cell.replaceChildren(...h.saved); });
+};
+
+// Before a move: what to slide, or null. `back`: the move is being taken
+// back (its trail is worked out from the position it returns to).
+const slideStart = (code, back = false) => {
+  endSlides();
+  if (!slidesOn()) return null;
+  return { code, back, rects: snapRects(), from: pos };
+};
+
+// After the move and render: start the slides.
+const slideRun = (start) => {
+  if (!start) return;
+  const { code, back, rects } = start;
+  // The trail always runs from the position before the move.
+  const base = back ? pos : start.from;
+  const { trail: fwd, mid } = slideTrail(base, lay, code);
+  const trail = back ? reverseTrail(fwd) : fwd;
+  // A safety check: every card the move puts on a pile must be there.
+  const moved = back ? start.from : pos;
+  if (fwd.some((t) => t.at[2].pile !== undefined && moved.piles[t.at[2].pile].cards[t.at[2].index] !== t.card)) return;
+  const after = snapRects();
+  const layer = $('slides');
+  const L = layer.getBoundingClientRect();
+  const ch = cw * 1.4;
+  // Card-sized box at the centre of a rect (the stock button is wider).
+  const box = (r) => r && { x: r.left - L.left + (r.width - cw) / 2, y: r.top - L.top + (r.height - ch) / 2 };
+  // A place in the position between the two steps: its column plus its offset.
+  const H = $('tableau').clientHeight;
+  const midRect = (at) => {
+    const col = at.pile === undefined ? null : $('tableau').children[at.pile];
+    if (!col) return null;
+    const r = col.getBoundingClientRect();
+    const off = pileOffsets(mid.piles[at.pile], isOpen(), cw, H)[at.index] ?? 0;
+    return { left: r.left, top: r.top + off, width: cw, height: ch };
+  };
+  const any = (i) => trail.some((t) => locKey(t.at[i]) !== locKey(t.at[i + 1]));
+  const d1 = any(0) ? (back ? AUTO_MS : SLIDE_MS) : 0;
+  const d2 = any(1) ? (back ? SLIDE_MS : AUTO_MS) : 0;
+  if (!d1 && !d2) return;
+  slides = { ghosts: [], anims: [], hide: new Set(), hold: new Map() };
+  const isDeal = decodeMove(code).kind === 'deal';
+  let n = 0;
+  trail.forEach((t) => {
+    const [k0, k1, k2] = t.at.map(locKey);
+    if (k0 === k2) return;
+    const p0 = box(rects.get(k0)), p2 = box(after.get(k2));
+    const p1 = k1 === k0 ? p0 : k1 === k2 ? p2 : box(midRect(t.at[1]));
+    if (!p0 || !p1 || !p2) return;
+    const devil = t.at.some((a) => a.devil !== undefined);
+    const g = (devil ? stackedCardEl : cardEl)(t.card, 'ghost');
+    g.style.left = `${p0.x}px`;
+    g.style.top = `${p0.y}px`;
+    layer.append(g);
+    const tr = (p) => `translate(${p.x - p0.x}px, ${p.y - p0.y}px)`;
+    const total = d1 + d2;
+    const frames = [{ transform: tr(p0), offset: 0, easing: 'ease-out' }];
+    if (d1 && d2) frames.push({ transform: tr(p1), offset: d1 / total, easing: 'ease-out' });
+    frames.push({ transform: tr(p2), offset: 1 });
+    // Dealt cards leave the stock one after another.
+    const delay = isDeal && t.at[back ? 2 : 0].stock ? DEAL_STAGGER * n++ : 0;
+    slides.anims.push(g.animate(frames, { duration: total, delay, fill: 'both' }));
+    slides.ghosts.push(g);
+    if (t.at[2].slot !== undefined) {
+      const s = t.at[2].slot, d = displaySlot(s), h0 = start.from.found[s >> 1][s % 2];
+      slides.hold.set(k2, { make: () => h0 ? cardEl(h0 | (SUITS.indexOf(SLOT_ORDER[d]) << 4)) : el('div', 'slot', suitSvg(SLOT_ORDER[d], '')) });
+    } else if (!t.at[2].stock) slides.hide.add(k2);
+  });
+  applySlideHolds();
+  const mine = slides;
+  Promise.all(mine.anims.map((a) => a.finished)).then(() => { if (slides === mine) endSlides(); }, () => {});
+};
+
 // ============= Game flow =============
 
 const persist = () => save(KEYS.current, rec);
 
 const startGame = (seed, variant, extra = {}) => {
+  endSlides();
   stopAuto();
   stopWorker('line');
   busy = null;
@@ -238,6 +352,7 @@ const finish = (result) => {
 };
 
 const playCode = (code) => {
+  const slide = slideStart(code);
   const cost = core.play(code);
   if (cost < 0) return;
   // A line being worked out for the old position is no use now.
@@ -249,6 +364,7 @@ const playCode = (code) => {
   liveMoved(code, cost);
   persist();
   render();
+  slideRun(slide);
   if (pos.won) finish(winResult(rec));
   else if (legal.length === 0) finish('stuck');
 };
@@ -256,6 +372,7 @@ const playCode = (code) => {
 const takeBack = () => {
   if (rec.result || auto) return;
   const noWin = isLive() && ['unknown', 'lost'].includes(liveAnswer().state);
+  const slide = slideStart(rec.line[rec.line.length - 1], true);
   const cost = core.undo();
   if (cost < 0) return;
   if (busy) stopWorker('line');
@@ -267,6 +384,7 @@ const takeBack = () => {
   liveMoved();
   persist();
   render();
+  slideRun(slide);
 };
 
 const switchTo = (variant) => {
@@ -378,6 +496,7 @@ const scheduleAuto = () => {
 const stepAuto = () => {
   if (!auto) return;
   const code = auto.line[auto.i];
+  const slide = code === undefined ? null : slideStart(code);
   const cost = code === undefined ? -1 : core.play(code);
   if (cost < 0) {
     stopAuto();
@@ -391,15 +510,19 @@ const stepAuto = () => {
   persist();
   if (pos.won) {
     stopAuto();
+    render();
+    slideRun(slide);
     finish(winResult(rec));
     return;
   }
   scheduleAuto();
   render();
+  slideRun(slide);
 };
 
 // Take the solver's last move back (playback paused); not a take-back.
 const stepBackAuto = () => {
+  const slide = slideStart(auto.line[auto.i - 1], true);
   if (core.undo() < 0) return;
   rec = withPlaybackBack(rec);
   auto.i--;
@@ -407,6 +530,7 @@ const stepBackAuto = () => {
   liveMoved();
   persist();
   render();
+  slideRun(slide);
 };
 
 const stopAuto = () => {
@@ -520,6 +644,7 @@ function render() {
   const hitSlot = foundSlot < 0 ? -1 : SLOT_ORDER.findIndex((s, i) => s === SUITS[foundSlot >> 1] && i % 2 === foundSlot % 2);
   SLOT_ORDER.forEach((s, i) => {
     const cell = el('div', 'cell');
+    cell.dataset.loc = `f${i}`;
     const h = slotHeight(i), hit = i === hitSlot;
     const isHint = hit && hintCode !== null && hintCode === tg.found;
     const cls = `${hit ? 'target' : ''} ${isHint ? 'hint' : ''}`;
@@ -532,6 +657,7 @@ function render() {
   const sb = el('button', 'stockbtn', left ? `<b>${left}</b><span>Deal</span>` : '<span>Empty</span>');
   sb.disabled = !left || !!rec.result || !!auto;
   sb.classList.toggle('hint', hintCode === 2);
+  sb.dataset.loc = 'stock';
   sb.setAttribute('aria-label', `Deal, ${left} cards left`);
   sb.onclick = () => { sel = null; playCode(2); };
   if (land) $('stockslot').replaceChildren(sb);
@@ -548,6 +674,7 @@ function render() {
     const isNext = k === devilLeft.length - 1;
     const e = stackedCardEl(c, isNext && sel?.devil ? 'sel' : '');
     e.style.left = `${k * step}px`;
+    e.dataset.loc = `d${pos.devilNext + devilLeft.length - 1 - k}`;
     if (isNext) e.onclick = () => {
       if (auto || rec.result) return;
       if (sel?.devil) { sel = null; render(); return; }
@@ -602,6 +729,7 @@ function render() {
       const last = i === pile.cards.length - 1;
       const e = cardEl(c, `${cls} ${isSel ? 'sel' : ''} ${hitPile && last ? 'target' : ''} ${hintPile && last ? 'hint' : ''}`);
       e.style.top = `${offs[i]}px`;
+      e.dataset.loc = `p${p}.${i}`;
       e.onclick = (ev) => {
         ev.stopPropagation();
         if (rec.result || auto) return;
@@ -646,6 +774,7 @@ function render() {
     rows.scrollTop = scroll;
     prevLanding = new Map(land2.map((x) => [x.index, x.col]));
   }
+  applySlideHolds();
 }
 
 // ============= Sheets =============

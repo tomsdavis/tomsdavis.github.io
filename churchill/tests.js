@@ -9,7 +9,7 @@ import { SUIT_PATH, RANK_PATH, CAP, suitSvg, rankSvg, FACE, SUIT_BOX, rowInk, co
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
-  posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
+  slideTrail, reverseTrail, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -423,6 +423,63 @@ describe('Layout', () => {
     const pile = { cards: Array(30).fill(1), down: 0 };
     const offs = pileOffsets(pile, true, 36, 300);
     assert(offs[29] + 36 * 1.4 <= 300);
+  });
+});
+
+describe('Sliding moves', () => {
+  // Where the trail says each card ends up must match the engine, for
+  // every kind of move: random games in all three variants.
+  const placeCard = (p, at, layout) => at.pile !== undefined ? p.piles[at.pile].cards[at.index] : at.devil !== undefined ? layout.devil[at.devil] : null;
+  const check = (natural, seed, steps) => {
+    core.newGame(seed, natural);
+    const layout = core.layout();
+    let rnd = seed;
+    const kinds = new Set();
+    for (let n = 0; n < steps; n++) {
+      const legal = core.legalMoves();
+      if (!legal.length) break;
+      rnd = (rnd * 1103515245 + 12345) % 2147483648;
+      // Deal only now and then, so games last.
+      const pick = legal.filter((c) => c !== 2);
+      const code = pick.length && rnd % 7 ? pick[rnd % pick.length] : legal[rnd % legal.length];
+      const before = core.position();
+      const { trail, found } = slideTrail(before, layout, code);
+      core.play(code);
+      const after = core.position();
+      kinds.add(decodeMove(code).kind);
+      if (trail.some((t) => t.at[2].slot !== undefined && t.at[0].slot === undefined && rank(t.card) === 1 && t.at[1].pile !== undefined)) kinds.add('auto');
+      assertEqual(JSON.stringify(found), JSON.stringify(after.found), `foundations after ${code}`);
+      trail.forEach((t) => {
+        assertEqual(placeCard(before, t.at[0], layout) ?? t.card, t.card, 'card before');
+        if (t.at[2].pile !== undefined) assertEqual(placeCard(after, t.at[2], layout), t.card, 'card after');
+        if (t.at[2].slot !== undefined) assertEqual(after.found[t.at[2].slot >> 1][t.at[2].slot % 2] >= rank(t.card), true, 'slot');
+      });
+      // Every card that changed place is in the trail.
+      const moved = before.piles.reduce((a, p, i) => a + Math.max(0, p.cards.length - after.piles[i].cards.length), 0);
+      const left = trail.filter((t) => t.at[0].pile !== undefined && JSON.stringify(t.at[0]) !== JSON.stringify(t.at[2])).length;
+      assert(left >= moved, 'cards that left a pile');
+      const back = reverseTrail(trail);
+      assertEqual(JSON.stringify(back[0]?.at[0]), JSON.stringify(trail[0]?.at[2]), 'reverse');
+      // Take some moves back now and then: the trail is from the position before.
+      if (rnd % 11 === 0) core.undo();
+    }
+    return kinds;
+  };
+  test('trail agrees with the engine (closed, open, natural)', () => {
+    const kinds = new Set();
+    for (let seed = 1; seed <= 40; seed++) {
+      check(false, seed, 150).forEach((k) => kinds.add(k));
+      check(true, seed + 1000, 150).forEach((k) => kinds.add(k));
+    }
+    ['run', 'found', 'deal', 'devil', 'auto'].forEach((k) => assert(kinds.has(k), `covered ${k}`));
+  });
+  test('a deal goes left to right and skips King-headed piles', () => {
+    core.newGame(1, false);
+    const p = core.position(), layout = core.layout();
+    const { trail } = slideTrail(p, layout, 2);
+    const cols = trail.filter((t) => t.at[0].stock).map((t) => t.at[1].pile);
+    const elig = p.piles.map((x, i) => i).filter((i) => !p.piles[i].kingHeaded);
+    assertEqual(cols.join(','), elig.join(','));
   });
 });
 

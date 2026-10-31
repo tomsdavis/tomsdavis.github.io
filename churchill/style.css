@@ -155,6 +155,10 @@ button:disabled { opacity: .4; cursor: default; }
 .rowtag { font-size: 10px; color: var(--ink-dim); padding: 3px 6px 1px; letter-spacing: .06em; text-transform: uppercase; }
 .panel.collapsed .rows { display: none; }
 
+/* sliding moves: copies of the moved cards fly over the table (app.js) */
+.slides { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.slides .card { cursor: default; }
+
 /* sheets */
 .sheet { position: absolute; inset: 0; background: rgba(5, 15, 11, .72); display: flex; align-items: flex-end; justify-content: center; z-index: 5; }
 .sheet .in { width: 100%; max-width: 480px; max-height: 100%; overflow-y: auto; box-sizing: border-box; background: var(--felt-deep); border: 1px solid var(--felt-line); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 14px 14px 16px; display: grid; gap: 10px; }
