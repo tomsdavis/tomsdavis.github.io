@@ -9,7 +9,7 @@ import { SUIT_PATH, RANK_PATH, CAP, suitSvg, rankSvg, FACE, SUIT_BOX, rowInk, co
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
-  slideTrail, reverseTrail, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
+  slideTrail, reverseTrail, appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -480,6 +480,34 @@ describe('Sliding moves', () => {
     const cols = trail.filter((t) => t.at[0].stock).map((t) => t.at[1].pile);
     const elig = p.piles.map((x, i) => i).filter((i) => !p.piles[i].kingHeaded);
     assertEqual(cols.join(','), elig.join(','));
+  });
+});
+
+// Text of a file next to this one.
+const readText = async (name) => {
+  const url = new URL(name, import.meta.url);
+  if (typeof Deno !== 'undefined') return Deno.readTextFile(url);
+  if (typeof process !== 'undefined' && process.versions?.node) {
+    const { readFile } = await import('node:fs/promises');
+    return readFile(url, 'utf8');
+  }
+  return (await fetch(url)).text();
+};
+const SW = await readText('./sw.js');
+const APP_VERSION = await readText('./app-version.txt');
+
+describe('App version', () => {
+  test('app-version.txt names the cache version in sw.js', () => {
+    const cache = SW.match(/CACHE_NAME = 'churchill-(v\d+)'/)[1];
+    assertEqual(APP_VERSION.trim().split(/\s+/)[0], cache);
+  });
+  test('the commit, when given, is a short hash', () => {
+    const hash = APP_VERSION.trim().split(/\s+/)[1];
+    assert(hash === undefined || /^[0-9a-f]{7,12}$/.test(hash), `commit ${hash}`);
+  });
+  test('shown as version and commit', () => {
+    assertEqual(appVersionText('v16 718744c\n'), 'v16 (718744c)');
+    assertEqual(appVersionText('v16\n'), 'v16');
   });
 });
 

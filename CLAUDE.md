@@ -69,5 +69,6 @@ The tools (ephemerides, armillarySphere, solfa, churchill) live together for one
 - No build step at deploy time — files served as-is
 - For vanilla tools: bump `CACHE_NAME` in each tool's `sw.js` when shipping changes to cached static assets, so the activate handler evicts the old cache on next load
 - For churchill: bump `CACHE_NAME` in `churchill/sw.js` as for vanilla tools, including after copying in a new `core.wasm`
+- For churchill, the menu shows `churchill/app-version.txt` ("v16 718744c": cache version, commit). A commit cannot hold its own hash, so ship in two commits: (1) the change, with `CACHE_NAME` bumped and `app-version.txt` set to the new version alone (`v17`; `node churchill/tests.js` checks they match); (2) after committing, stamp it: `printf '%s %s\n' v17 "$(git rev-parse --short HEAD)" > churchill/app-version.txt`, commit, then push both. The hash names the commit with the code.
 - For pre-built tools (e.g. solfa): rebuild locally before commit (`cd solfa-src && deno task build`); the adapter writes to `../solfa/` and the SW cache key rotates per build automatically
 - `.nojekyll` at the repo root disables GitHub Pages' Jekyll processing — required so paths beginning with `_` (e.g. SvelteKit's `_app/`) are served. Don't remove it.

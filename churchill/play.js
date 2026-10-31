@@ -36,6 +36,15 @@ export const slotFor = (pos, card) => {
   return a === rank(card) - 1 ? 2 * s : b === rank(card) - 1 ? 2 * s + 1 : -1;
 };
 
+// ============= Version =============
+
+// app-version.txt holds the cache version and the commit of the code, for
+// example "v16 718744c"; shown as "v16 (718744c)".
+export const appVersionText = (txt) => {
+  const [v, hash] = txt.trim().split(/\s+/);
+  return hash ? `${v} (${hash})` : v ?? '?';
+};
+
 // ============= Sliding moves =============
 
 // Where the cards a move shifts go, for sliding them on screen. A place is

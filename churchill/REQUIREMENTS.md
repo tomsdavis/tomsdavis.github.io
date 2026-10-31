@@ -306,7 +306,8 @@ The live indicator (section 10) also feeds on these lines.
 New game (seed, variant, random, winnable only), This game (Restart,
 Resign, Hint, Still winnable?, Solve from here, Switch to open), Settings
 (layout, winnable indicator, solver speed), History (export, clear), Rules,
-core version.
+and at the bottom the app version with its commit and the core version
+(`app-version.txt`, `core-version.txt`; history exports record both).
 
 ## 15. Later requirements (all from the menu)
 

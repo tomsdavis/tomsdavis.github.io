@@ -6,7 +6,7 @@ import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
   withHint, withCheck, withAssist, winResult, withPlaybackBack, slideTrail, reverseTrail,
-  posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
+  appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Storage =============
@@ -548,7 +548,7 @@ const stopAuto = () => {
 const exportHistory = async () => {
   const name = `churchill-history-${new Date().toISOString().slice(0, 10)}.json`;
   const data = JSON.stringify({
-    app: 'churchill', exported: new Date().toISOString(), core: $('coreVersion').textContent,
+    app: 'churchill', exported: new Date().toISOString(), appVersion: $('appVersion').textContent, core: $('coreVersion').textContent,
     current: rec, records: load(KEYS.records, []),
   });
   const file = new File([data], name, { type: 'application/json' });
@@ -901,6 +901,7 @@ const wire = () => {
 const boot = async () => {
   core = await loadCore(fetch('core.wasm'));
   fetch('core-version.txt').then((r) => r.text()).then((v) => { $('coreVersion').textContent = v.trim(); }).catch(() => {});
+  fetch('app-version.txt').then((r) => r.text()).then((v) => { $('appVersion').textContent = appVersionText(v); }).catch(() => {});
   wire();
   const saved = load(KEYS.current, null);
   if (saved && validSeed(saved.seed)) {
