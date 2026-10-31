@@ -36,6 +36,8 @@
       transition: background 0.15s;
     }
     a:hover { background: #3a3a6e; }
+    a.has-icon { display: flex; gap: 0.9rem; align-items: center; }
+    a.has-icon img { width: 44px; height: 44px; border-radius: 10px; flex: none; }
     a .desc {
       font-size: 0.85rem;
       color: #8080a0;
@@ -58,9 +60,10 @@
       Armillary Sphere
       <div class="desc">Earth and the celestial sphere through time</div>
     </a>
-    <a href="churchill/">
-      Churchill Solitaire
-      <div class="desc">Play any deal by number, closed or with every card visible</div>
+    <a href="churchill/" class="has-icon">
+      <img src="churchill/icon.svg" alt="">
+      <span>Churchill Solitaire
+        <span class="desc" style="display:block">Play any deal by number, closed or with every card visible</span></span>
     </a>
   </div>
 </body>

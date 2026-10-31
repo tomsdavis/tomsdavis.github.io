@@ -430,6 +430,10 @@ holds the paths and places the corner indices from the glyph ink boxes
 (margin 0.07 card widths on all four sides; J and Q, which both drop below
 the baseline in Source Serif 4, sit higher at the bottom right). Covered
 Devil's Six cards hide their bottom corner.
+Stage 3 shipped the same day (cache v12): icons built by
+`docs/pwa/make_icons.js` in the churchill repo; the maskable icon keeps
+every card corner inside the central circle (radius 40%). The home page
+link shows `icon.svg`.
 
 5. **Polish.** Menu and take-back buttons drawn as SVG icons. Update this
    section with what shipped, and the analysis repo's `docs/pwa/README.md`.
