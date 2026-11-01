@@ -36,6 +36,27 @@ export const slotFor = (pos, card) => {
   return a === rank(card) - 1 ? 2 * s : b === rank(card) - 1 ? 2 * s + 1 : -1;
 };
 
+// ============= Dragging and double taps =============
+
+// The move a drag dropped at (x, y) makes, or null. `cols`: the tableau
+// columns' screen rects, left to right; `found`: the rect around the
+// foundation slots; `tg`: targetsFor the dragged cards. Any spot over the
+// foundations sends the card up if it can go; otherwise the column under
+// x (its full height, below the foundations) takes it if it is a target.
+export const dropTarget = (x, y, cols, found, tg) => {
+  const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  if (found && inside(found)) return tg.found;
+  if (found && y < found.bottom) return null;
+  const p = cols.findIndex((r) => x >= r.left && x <= r.right);
+  return p >= 0 && tg.piles.has(p) ? tg.piles.get(p) : null;
+};
+
+// Is this tap the second of a double tap? `prev`: { key, t } of the last
+// tap (key names the card's place), `now` the same for this one.
+export const DOUBLE_TAP_MS = 350;
+export const isDoubleTap = (prev, now) =>
+  !!prev && prev.key === now.key && now.t - prev.t <= DOUBLE_TAP_MS;
+
 // ============= Version =============
 
 // app-version.txt holds the cache version and the commit of the code, for

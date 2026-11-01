@@ -10,7 +10,7 @@ import { SUIT_PATH, RANK_PATH, CAP, suitSvg, rankSvg, FACE, SUIT_BOX, rowInk, co
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
-  slideTrail, reverseTrail, appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
+  slideTrail, reverseTrail, dropTarget, isDoubleTap, DOUBLE_TAP_MS, appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -518,6 +518,37 @@ const readText = async (name) => {
 };
 const SW = await readText('./sw.js');
 const APP_VERSION = await readText('./app-version.txt');
+
+describe('Dragging and double taps', () => {
+  // Three columns 40 px wide under a foundation row 0-60 px high.
+  const cols = [0, 1, 2].map((i) => ({ left: i * 40, right: i * 40 + 38, top: 70, bottom: 400 }));
+  const found = { left: 0, right: 118, top: 0, bottom: 60 };
+  const tg = { piles: new Map([[2, 77]]), found: 9 };
+  test('dropped on a target column, anywhere down it', () => {
+    assertEqual(dropTarget(100, 80, cols, found, tg), 77);
+    assertEqual(dropTarget(100, 390, cols, found, tg), 77);
+  });
+  test('a column that is not a target, or a gap, takes nothing', () => {
+    assertEqual(dropTarget(10, 200, cols, found, tg), null);
+    assertEqual(dropTarget(39, 200, cols, found, tg), null);
+  });
+  test('over the foundations sends the card up, if it can go', () => {
+    assertEqual(dropTarget(5, 30, cols, found, tg), 9);
+    assertEqual(dropTarget(5, 30, cols, found, { ...tg, found: null }), null);
+  });
+  test('beside the foundations (the Deal button) takes nothing', () => {
+    assertEqual(dropTarget(100, 30, cols, { ...found, right: 80 }, tg), null);
+  });
+  test('between the foundations and the tableau counts as the column', () => {
+    assertEqual(dropTarget(100, 65, cols, found, tg), 77);
+  });
+  test('double tap: same card, quick', () => {
+    assert(isDoubleTap({ key: 'p1.4', t: 1000 }, { key: 'p1.4', t: 1000 + DOUBLE_TAP_MS }));
+    assert(!isDoubleTap({ key: 'p1.4', t: 1000 }, { key: 'p1.4', t: 1001 + DOUBLE_TAP_MS }));
+    assert(!isDoubleTap({ key: 'p1.3', t: 1000 }, { key: 'p1.4', t: 1100 }));
+    assert(!isDoubleTap(null, { key: 'p1.4', t: 1100 }));
+  });
+});
 
 describe('App version', () => {
   test('app-version.txt names the cache version in sw.js', () => {

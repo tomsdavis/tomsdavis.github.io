@@ -5,7 +5,7 @@ import { suitSvg, rankSvg, faceHTML } from './glyphs.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
-  withHint, withCheck, withAssist, winResult, withPlaybackBack, slideTrail, reverseTrail,
+  withHint, withCheck, withAssist, winResult, withPlaybackBack, slideTrail, reverseTrail, dropTarget, isDoubleTap,
   appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
@@ -35,6 +35,7 @@ let newVariant = 'closed';
 let busy = null; // 'hint' | 'check' | 'solve' while the solver works on a line
 let hintCode = null; // the move a hint points at, until the next move
 let auto = null; // solver playback: { line, i, paused, timer }
+let lastTap = null; // { key, t } of the last tap on a card, for double taps
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => {
@@ -251,11 +252,163 @@ const endSlides = () => {
 };
 
 // Before a move: what to slide, or null. `back`: the move is being taken
-// back (its trail is worked out from the position it returns to).
-const slideStart = (code, back = false) => {
+// back (its trail is worked out from the position it returns to). `over`:
+// places to start from instead of the table's (a drag's dropped cards).
+const slideStart = (code, back = false, over = null) => {
   endSlides();
   if (!slidesOn()) return null;
-  return { code, back, rects: snapRects(), from: pos };
+  const rects = snapRects();
+  over?.forEach((r, k) => rects.set(k, r));
+  return { code, back, rects, from: pos };
+};
+
+// ============= Dragging =============
+
+// Press a card that can move and drag it: copies of it and the cards on it
+// follow the pointer while the real ones stay hidden, and the places it can
+// go light up as for a tap. Let go over one of them to move (the cards
+// slide on from where they were dropped); anywhere else they fly back. A
+// press that moves less than DRAG_PX is a tap.
+const DRAG_PX = 8, BACK_MS = 150;
+let drag = null; // { sel, x0, y0, id, on, keys, ghosts: [{ g, k }], back }
+let swallowClick = false;
+
+const dragKeys = (s) => s.devil ? [`d${pos.devilNext}`]
+  : pos.piles[s.pile].cards.slice(s.index).map((_, k) => `p${s.pile}.${s.index + k}`);
+const applyDragHolds = () => {
+  if (drag?.on) drag.keys.forEach((k) => { const e = locEl(k); if (e) e.style.visibility = 'hidden'; });
+};
+
+const dragDown = (ev, s) => {
+  if (drag || rec.result || auto || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  drag = { sel: s, x0: ev.clientX, y0: ev.clientY, id: ev.pointerId, on: false };
+};
+
+const dragBegin = () => {
+  endSlides();
+  hintCode = null;
+  sel = drag.sel;
+  render();
+  const layer = $('slides');
+  const L = layer.getBoundingClientRect();
+  drag.keys = dragKeys(drag.sel);
+  drag.ghosts = drag.keys.map((k) => locEl(k)).filter(Boolean).map((e) => {
+    const r = e.getBoundingClientRect();
+    const g = e.cloneNode(true);
+    g.classList.remove('sel', 'target', 'hint');
+    g.classList.add('ghost', 'drag');
+    Object.assign(g.style, { left: `${r.left - L.left}px`, top: `${r.top - L.top}px`, visibility: '', transform: '' });
+    layer.append(g);
+    return { g, k: e.dataset.loc };
+  });
+  drag.on = true;
+  applyDragHolds();
+};
+
+const dragMove = (ev) => {
+  if (!drag || drag.back || ev.pointerId !== drag.id) return;
+  const dx = ev.clientX - drag.x0, dy = ev.clientY - drag.y0;
+  if (!drag.on) {
+    if (Math.hypot(dx, dy) < DRAG_PX) return;
+    dragBegin();
+  }
+  drag.ghosts.forEach(({ g }) => { g.style.transform = `translate(${dx}px, ${dy}px)`; });
+};
+
+const dropRects = () => {
+  const cols = [...$('tableau').children].map((c) => c.getBoundingClientRect());
+  const fs = [...$('top').querySelectorAll('[data-loc^="f"]')].map((e) => e.getBoundingClientRect());
+  const found = fs.length && {
+    left: Math.min(...fs.map((r) => r.left)), right: Math.max(...fs.map((r) => r.right)),
+    top: Math.min(...fs.map((r) => r.top)), bottom: Math.max(...fs.map((r) => r.bottom)),
+  };
+  return { cols, found };
+};
+
+const dragEnd = (ev) => {
+  if (!drag || drag.back || ev.pointerId !== drag.id) return;
+  const d = drag;
+  if (!d.on) { drag = null; return; } // a tap: the click handler has it
+  swallowClick = true;
+  setTimeout(() => { swallowClick = false; }, 0);
+  const { cols, found } = dropRects();
+  const code = ev.type === 'pointerup' && !rec.result && !auto
+    ? dropTarget(ev.clientX, ev.clientY, cols, found, targetsFor(d.sel, legal, pos)) : null;
+  if (code !== null) {
+    const over = new Map(d.ghosts.map(({ g, k }) => [k, g.getBoundingClientRect()]));
+    d.ghosts.forEach(({ g }) => g.remove());
+    drag = null;
+    playCode(code, over);
+    return;
+  }
+  // Not a place it can go: fly back, then put the cards back.
+  const done = () => {
+    d.ghosts.forEach(({ g }) => g.remove());
+    if (drag === d) drag = null;
+    sel = null;
+    render();
+  };
+  if (!slidesOn()) { done(); return; }
+  d.back = true;
+  const anims = d.ghosts.map(({ g }) => g.animate([{ transform: g.style.transform }, { transform: 'translate(0, 0)' }], { duration: BACK_MS, easing: 'ease-out', fill: 'forwards' }));
+  Promise.all(anims.map((a) => a.finished)).then(done, done);
+};
+
+// ============= Confetti =============
+
+// A short burst from the two lower corners when the player wins.
+const CONFETTI = ['#c8102e', '#1b1b1b', '#e8b83a', '#f4efe2', '#2f7d4f', '#3d6fd8'];
+const confetti = () => {
+  if (reduceMotion.matches) return;
+  const c = el('canvas', 'confetti');
+  const dpr = devicePixelRatio || 1, W = innerWidth, H = innerHeight;
+  c.width = W * dpr;
+  c.height = H * dpr;
+  document.body.append(c);
+  const x = c.getContext('2d');
+  x.scale(dpr, dpr);
+  const k = Math.max(0.6, H / 800); // speeds scale with the screen
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const bits = Array.from({ length: 180 }, (_, i) => {
+    const side = i % 2 ? 1 : -1; // 1 from the left corner, -1 from the right
+    return {
+      x: side > 0 ? rnd(0, W * 0.1) : rnd(W * 0.9, W), y: H + 10,
+      vx: side * rnd(1, 7) * k, vy: -rnd(12, 22) * k,
+      w: rnd(6, 11), h: rnd(3, 6), a: rnd(0, Math.PI), va: rnd(-0.25, 0.25),
+      spin: rnd(0, Math.PI), vs: rnd(0.08, 0.2), col: CONFETTI[i % CONFETTI.length],
+      delay: (i >> 1) < 60 ? 0 : rnd(0, 350),
+    };
+  });
+  const LIFE = 3400, FADE = 700;
+  let t0 = null, last = null;
+  const frame = (t) => {
+    if (t0 === null) { t0 = t; last = t; }
+    const f = Math.min(3, (t - last) / 16.7);
+    last = t;
+    const age = t - t0;
+    x.clearRect(0, 0, W, H);
+    x.globalAlpha = age > LIFE - FADE ? Math.max(0, (LIFE - age) / FADE) : 1;
+    bits.forEach((b) => {
+      if (age < b.delay) return;
+      b.vy += 0.32 * k * f;
+      b.vx *= 0.985 ** f;
+      b.vy *= 0.99 ** f;
+      b.x += b.vx * f;
+      b.y += b.vy * f;
+      b.a += b.va * f;
+      b.spin += b.vs * f;
+      x.save();
+      x.translate(b.x, b.y);
+      x.rotate(b.a);
+      x.scale(1, Math.cos(b.spin)); // the flutter
+      x.fillStyle = b.col;
+      x.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+      x.restore();
+    });
+    if (age < LIFE) requestAnimationFrame(frame);
+    else c.remove();
+  };
+  requestAnimationFrame(frame);
 };
 
 // After the move and render: start the slides.
@@ -349,10 +502,12 @@ const finish = (result) => {
   archive(rec);
   persist();
   showEnd(result);
+  if (result === 'won') confetti();
 };
 
-const playCode = (code) => {
-  const slide = slideStart(code);
+const playCode = (code, over = null) => {
+  lastTap = null;
+  const slide = slideStart(code, false, over);
   const cost = core.play(code);
   if (cost < 0) return;
   // A line being worked out for the old position is no use now.
@@ -679,8 +834,13 @@ function render() {
     const e = stackedCardEl(c, isNext && sel?.devil ? 'sel' : '');
     e.style.left = `${k * step}px`;
     e.dataset.loc = `d${pos.devilNext + devilLeft.length - 1 - k}`;
+    if (isNext) e.onpointerdown = (ev) => dragDown(ev, { devil: true });
     if (isNext) e.onclick = () => {
       if (auto || rec.result) return;
+      const tap = { key: e.dataset.loc, t: performance.now() };
+      const dbl = isDoubleTap(lastTap, tap);
+      lastTap = dbl ? null : tap;
+      if (dbl && legal.includes(3)) { playCode(3); return; }
       if (sel?.devil) { sel = null; render(); return; }
       if (!legal.includes(3)) { toast("No foundation takes the next Devil's Six card yet"); return; }
       sel = { devil: true };
@@ -734,10 +894,17 @@ function render() {
       const e = cardEl(c, `${cls} ${isSel ? 'sel' : ''} ${hitPile && last ? 'target' : ''} ${hintPile && last ? 'hint' : ''}`);
       e.style.top = `${offs[i]}px`;
       e.dataset.loc = `p${p}.${i}`;
+      if (canPick(pos, p, i)) e.onpointerdown = (ev) => dragDown(ev, { pile: p, index: i });
       e.onclick = (ev) => {
         ev.stopPropagation();
         if (rec.result || auto) return;
         hintCode = null;
+        // A double tap sends the card up if it can go.
+        const tap = { key: e.dataset.loc, t: performance.now() };
+        const dbl = isDoubleTap(lastTap, tap);
+        lastTap = dbl ? null : tap;
+        const up = dbl ? targetsFor({ pile: p, index: i }, legal, pos).found : null;
+        if (up !== null) { playCode(up); return; }
         if (hitPile) { moveHere(); return; }
         if (sel && !sel.devil && sel.pile === p && sel.index === i) { sel = null; render(); return; }
         if (canPick(pos, p, i)) { sel = { pile: p, index: i }; render(); }
@@ -779,6 +946,7 @@ function render() {
     prevLanding = new Map(land2.map((x) => [x.index, x.col]));
   }
   applySlideHolds();
+  applyDragHolds();
 }
 
 // ============= Sheets =============
@@ -896,6 +1064,11 @@ const wire = () => {
   $('endNew').onclick = () => { $('endSheet').hidden = true; openMenu(); };
   $('endClose').onclick = () => { $('endSheet').hidden = true; };
   addEventListener('resize', () => render());
+  addEventListener('pointermove', dragMove);
+  addEventListener('pointerup', dragEnd);
+  addEventListener('pointercancel', dragEnd);
+  // A drag ends without the click that would follow it.
+  addEventListener('click', (e) => { if (swallowClick) { swallowClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
   // No background searching while the app is out of sight.
   document.addEventListener('visibilitychange', () => { if (document.hidden) liveStop(); else liveSchedule(); });
 };

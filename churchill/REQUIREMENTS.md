@@ -149,7 +149,16 @@ Shows every stock card and where it will land.
   cancel.
 - Tap the stock or the Deal button to deal.
 - Illegal taps do nothing (a short shake of the card, no message).
-- Later option: drag and drop; double-tap to send a card to a foundation.
+- **Drag and drop** (added 2026-11-01): press a card that can move and drag
+  it; it and the cards on it follow the finger, and the legal destinations
+  light up as for a tap. Letting go anywhere over the foundations sends it
+  up if it can go; anywhere over a lit column (its full height) moves it
+  there, and the cards slide on from where they were let go. Anywhere else
+  they fly back. A press that moves less than 8 px is a tap. The Devil's
+  Six next card drags the same way.
+- **Double tap** a pile's top card, or the next Devil's Six card, to send it
+  to a foundation (two taps within 350 ms). If it cannot go up, the second
+  tap acts as an ordinary tap.
 
 ## 9. Take-back
 
@@ -273,7 +282,9 @@ can win it.
   natural. Recorded (section 4).
 - The game in progress survives closing the app (localStorage: seed,
   variant, move list, counts).
-- **Win:** all 104 cards on the foundations.
+- **Win:** all 104 cards on the foundations. A win by hand ends with a
+  burst of confetti (about 3 s; none under reduced motion, none for a game
+  the solver finished).
 - **Stuck:** stock empty and no legal moves at all; the game ends as a
   loss. Otherwise the player can **Resign**.
 - Every game is recorded per seed, finished or not: variant at the start,
@@ -336,7 +347,6 @@ and at the bottom the app version with its commit and the core version
 - **Where it was lost:** the move after which the game could no longer be
   won.
 - **Optional automatic play:** safe foundation plays (`safe_auto`).
-- **Drag and drop**, double-tap to foundation.
 - **Four-colour suits** setting.
 - **"No progress possible"** notice when the stock is empty and only
   reversible moves remain.
