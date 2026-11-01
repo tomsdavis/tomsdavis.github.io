@@ -1,11 +1,11 @@
 // Churchill Solitaire: UI, persistence and the solver worker.
 
-import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, SUITS, validSeed, lossText } from './core.js';
+import { loadCore, landing, suit, isRed, rankText, cardName, decodeMove, encodeMove, SUITS, validSeed, lossText } from './core.js';
 import { suitSvg, rankSvg, faceHTML } from './glyphs.js';
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets, tableauNeed,
   VARIANT_NAME, VARIANT_SHORT, newRecord, withMove, withUndo, withSwitch, withEnd, replay,
-  withHint, withCheck, withAssist, winResult, withPlaybackBack, slideTrail, reverseTrail, dropTarget, isDoubleTap,
+  withHint, withCheck, withAssist, winResult, withPlaybackBack, slideTrail, reverseTrail, dropTarget, isDoubleTap, finishPlan,
   appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
@@ -36,6 +36,9 @@ let busy = null; // 'hint' | 'check' | 'solve' while the solver works on a line
 let hintCode = null; // the move a hint points at, until the next move
 let auto = null; // solver playback: { line, i, paused, timer }
 let lastTap = null; // { key, t } of the last tap on a card, for double taps
+let finishing = null; // the timer while Finish plays the last cards up
+// The player's hands are off while the solver plays or Finish runs.
+const handsOff = () => !!auto || !!finishing;
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => {
@@ -147,7 +150,7 @@ const liveStop = () => {
 };
 
 const liveSchedule = async () => {
-  if (!isLive() || rec.result || auto || document.hidden || live.job) return;
+  if (!isLive() || rec.result || handsOff() || document.hidden || live.job) return;
   if (live.probes?.here !== live.here) live.probes = { here: live.here, list: probeMoves() };
   const job = liveNextJob(live.cache, live.here, live.probes.list);
   if (!job) return;
@@ -276,11 +279,13 @@ let swallowClick = false;
 const dragKeys = (s) => s.devil ? [`d${pos.devilNext}`]
   : pos.piles[s.pile].cards.slice(s.index).map((_, k) => `p${s.pile}.${s.index + k}`);
 const applyDragHolds = () => {
-  if (drag?.on) drag.keys.forEach((k) => { const e = locEl(k); if (e) e.style.visibility = 'hidden'; });
+  if (!drag?.on) return;
+  drag.keys.forEach((k) => { const e = locEl(k); if (e) e.style.visibility = 'hidden'; });
+  markOver();
 };
 
 const dragDown = (ev, s) => {
-  if (drag || rec.result || auto || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  if (drag || rec.result || handsOff() || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
   drag = { sel: s, x0: ev.clientX, y0: ev.clientY, id: ev.pointerId, on: false };
 };
 
@@ -302,7 +307,19 @@ const dragBegin = () => {
     return { g, k: e.dataset.loc };
   });
   drag.on = true;
+  drag.rects = dropRects();
+  drag.over = null;
   applyDragHolds();
+};
+
+// Mark the lit place the dragged cards would land on if let go now.
+const markOver = () => {
+  $('frame').querySelectorAll('.over').forEach((e) => e.classList.remove('over'));
+  if (!drag?.on || drag.over === null) return;
+  const tg = targetsFor(drag.sel, legal, pos);
+  if (drag.over === tg.found) { $('top').querySelector('.target')?.classList.add('over'); return; }
+  const p = [...tg.piles].find(([, code]) => code === drag.over)?.[0];
+  if (p !== undefined) $('tableau').children[p]?.querySelector('.target')?.classList.add('over');
 };
 
 const dragMove = (ev) => {
@@ -313,6 +330,9 @@ const dragMove = (ev) => {
     dragBegin();
   }
   drag.ghosts.forEach(({ g }) => { g.style.transform = `translate(${dx}px, ${dy}px)`; });
+  const { cols, found } = drag.rects;
+  const over = dropTarget(ev.clientX, ev.clientY, cols, found, targetsFor(drag.sel, legal, pos));
+  if (over !== drag.over) { drag.over = over; markOver(); }
 };
 
 const dropRects = () => {
@@ -332,7 +352,7 @@ const dragEnd = (ev) => {
   swallowClick = true;
   setTimeout(() => { swallowClick = false; }, 0);
   const { cols, found } = dropRects();
-  const code = ev.type === 'pointerup' && !rec.result && !auto
+  const code = ev.type === 'pointerup' && !rec.result && !handsOff()
     ? dropTarget(ev.clientX, ev.clientY, cols, found, targetsFor(d.sel, legal, pos)) : null;
   if (code !== null) {
     const over = new Map(d.ghosts.map(({ g, k }) => [k, g.getBoundingClientRect()]));
@@ -480,6 +500,7 @@ const persist = () => save(KEYS.current, rec);
 
 const startGame = (seed, variant, extra = {}) => {
   endSlides();
+  stopFinish();
   stopAuto();
   stopWorker('line');
   busy = null;
@@ -521,11 +542,61 @@ const playCode = (code, over = null) => {
   render();
   slideRun(slide);
   if (pos.won) finish(winResult(rec));
-  else if (legal.length === 0) finish('stuck');
+  else if (legal.length === 0 || noProgress()) finish('stuck');
+};
+
+// ============= No progress, and finishing =============
+
+// The stock is gone and every move within reach is free to take back
+// (section 9): then no card can go up again and the game cannot be won.
+// Explores the free moves from here, playing them on the core and taking
+// them back, up to NO_PROGRESS_CAP positions (more: assume progress).
+const NO_PROGRESS_CAP = 2000;
+const noProgress = () => {
+  if (pos.won || pos.stockNext < lay.stock.length) return false;
+  const seen = new Set([posKey(pos)]);
+  let progress = false;
+  const visit = () => {
+    const moves = core.legalMoves();
+    // A foundation or Devil's Six play is progress; no need to try it.
+    if (moves.some((c) => ['found', 'devil'].includes(decodeMove(c).kind))) { progress = true; return; }
+    for (const code of moves) {
+      if (progress || seen.size > NO_PROGRESS_CAP) return;
+      const cost = core.play(code);
+      if (cost < 0) continue;
+      if (cost > 0) progress = true;
+      else {
+        const k = posKey(core.position());
+        if (!seen.has(k)) { seen.add(k); visit(); }
+      }
+      core.undo();
+    }
+  };
+  visit();
+  return !progress && seen.size <= NO_PROGRESS_CAP;
+};
+
+// Finish: play the cards up one by one (finishPlan), as moves of the game.
+const FINISH_MS = 160;
+const stopFinish = () => { clearTimeout(finishing); finishing = null; };
+const stepFinish = () => {
+  finishing = null;
+  if (rec.result) return;
+  const plan = finishPlan(pos, lay, rec.variant === 'closed');
+  const code = plan && (plan[0] === 'devil' ? encodeMove({ kind: 'devil' }) : encodeMove({ kind: 'found', from: plan[0] }));
+  if (!plan || !legal.includes(code)) { render(); return; }
+  finishing = setTimeout(stepFinish, FINISH_MS);
+  playCode(code);
+  if (rec.result) stopFinish();
+};
+const startFinish = () => {
+  if (handsOff() || rec.result) return;
+  sel = null;
+  stepFinish();
 };
 
 const takeBack = () => {
-  if (rec.result || auto) return;
+  if (rec.result || handsOff()) return;
   const noWin = isLive() && ['unknown', 'lost'].includes(liveAnswer().state);
   const slide = slideStart(rec.line[rec.line.length - 1], true);
   const cost = core.undo();
@@ -578,7 +649,7 @@ const noLine = (r) => (r.result === 'lost'
 
 // Ask the solver for a winning line from here; null if cancelled.
 const findLine = async (what) => {
-  if (busy || auto || rec.result) return null;
+  if (busy || handsOff() || rec.result) return null;
   busy = what;
   render();
   const r = await askSolver('line', { game: rec, limit: SOLVE_LIMIT, tries: SOLVE_TRIES, depth: SIMPLIFY_DEPTH, budget: SIMPLIFY_BUDGET }, SOLVE_MS);
@@ -790,7 +861,7 @@ function render() {
     sv.title = 'Whether the deal can be won with every card known';
   }
   const nextCost = core.undoCost();
-  $('undo').disabled = nextCost < 0 || !!rec.result || !!auto;
+  $('undo').disabled = nextCost < 0 || !!rec.result || handsOff();
   $('undo').classList.toggle('costly', nextCost > 0);
   $('undo').setAttribute('aria-label', `Take back (${nextCost < 0 ? 'nothing to take back' : nextCost ? `counts ${nextCost}` : 'free'}), ${rec.used} used`);
   $('undoCount').textContent = rec.used;
@@ -813,12 +884,14 @@ function render() {
     top.append(cell);
   });
   const left = lay.stock.length - pos.stockNext;
-  const sb = el('button', 'stockbtn', left ? `<b>${left}</b><span>Deal</span>` : '<span>Empty</span>');
-  sb.disabled = !left || !!rec.result || !!auto;
+  // Once foundation plays alone can win, the empty stock offers to finish.
+  const canFinish = !left && !rec.result && !auto && finishPlan(pos, lay, rec.variant === 'closed') !== null;
+  const sb = el('button', `stockbtn ${canFinish ? 'finish' : ''}`, left ? `<b>${left}</b><span>Deal</span>` : canFinish ? `<span>${finishing ? 'Finishing' : 'Finish'}</span>` : '<span>Empty</span>');
+  sb.disabled = !(left || canFinish) || !!rec.result || handsOff();
   sb.classList.toggle('hint', hintCode === 2);
   sb.dataset.loc = 'stock';
-  sb.setAttribute('aria-label', `Deal, ${left} cards left`);
-  sb.onclick = () => { sel = null; playCode(2); };
+  sb.setAttribute('aria-label', left ? `Deal, ${left} cards left` : canFinish ? 'Finish: play the rest up' : 'Stock empty');
+  sb.onclick = () => { sel = null; if (left) playCode(2); else startFinish(); };
   if (land) $('stockslot').replaceChildren(sb);
   else { $('stockslot').replaceChildren(); top.append(sb); }
 
@@ -836,7 +909,7 @@ function render() {
     e.dataset.loc = `d${pos.devilNext + devilLeft.length - 1 - k}`;
     if (isNext) e.onpointerdown = (ev) => dragDown(ev, { devil: true });
     if (isNext) e.onclick = () => {
-      if (auto || rec.result) return;
+      if (handsOff() || rec.result) return;
       const tap = { key: e.dataset.loc, t: performance.now() };
       const dbl = isDoubleTap(lastTap, tap);
       lastTap = dbl ? null : tap;
@@ -897,7 +970,7 @@ function render() {
       if (canPick(pos, p, i)) e.onpointerdown = (ev) => dragDown(ev, { pile: p, index: i });
       e.onclick = (ev) => {
         ev.stopPropagation();
-        if (rec.result || auto) return;
+        if (rec.result || handsOff()) return;
         hintCode = null;
         // A double tap sends the card up if it can go.
         const tap = { key: e.dataset.loc, t: performance.now() };
@@ -955,7 +1028,7 @@ const showEnd = (result) => {
   const msg = {
     won: 'Won!',
     solved: 'Solved by the solver (not counted as a win).',
-    stuck: 'No moves left.',
+    stuck: legal.length ? 'No progress possible: every move left can be taken back for free, so no card can go up again.' : 'No moves left.',
     resigned: 'Resigned.',
   }[result];
   $('endTitle').textContent = msg;
@@ -977,7 +1050,7 @@ const openMenu = () => {
   $('seedIn').value = rec.seed;
   $('switchRow').hidden = rec.variant !== 'closed' || !!rec.result;
   $('resign').disabled = !!rec.result;
-  ['hintBtn', 'checkBtn', 'solveBtn'].forEach((id) => { $(id).disabled = !!rec.result || !!busy || !!auto; });
+  ['hintBtn', 'checkBtn', 'solveBtn'].forEach((id) => { $(id).disabled = !!rec.result || !!busy || handsOff(); });
   press('speedSeg2', 'sp', settings.speed);
   $('clearConfirm').hidden = true;
   newVariant = rec.variant;

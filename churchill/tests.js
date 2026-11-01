@@ -10,7 +10,7 @@ import { SUIT_PATH, RANK_PATH, CAP, suitSvg, rankSvg, FACE, SUIT_BOX, rowInk, co
 import {
   targetsFor, canPick, slotFor, chooseLayout, pileOffsets,
   newRecord, withMove, withUndo, withSwitch, replay, withHint, withCheck, withAssist, winResult, withPlaybackBack,
-  slideTrail, reverseTrail, dropTarget, isDoubleTap, DOUBLE_TAP_MS, appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
+  slideTrail, reverseTrail, dropTarget, isDoubleTap, DOUBLE_TAP_MS, finishPlan, appVersionText, posKey, liveAfterMove, liveMerge, liveNextJob, withLiveAnswer, withLiveBack, lastLiveAnswer,
 } from './play.js';
 
 // ============= Test Framework =============
@@ -547,6 +547,41 @@ describe('Dragging and double taps', () => {
     assert(!isDoubleTap({ key: 'p1.4', t: 1000 }, { key: 'p1.4', t: 1001 + DOUBLE_TAP_MS }));
     assert(!isDoubleTap({ key: 'p1.3', t: 1000 }, { key: 'p1.4', t: 1100 }));
     assert(!isDoubleTap(null, { key: 'p1.4', t: 1100 }));
+  });
+});
+
+describe('Finishing', () => {
+  // A small position: hearts at 3/3, spades at 12/13; the rest as given.
+  const C = (r, s) => makeCard(r, s);
+  const pile = (cards, down = 0) => ({ cards, down });
+  const empty = () => Array.from({ length: 10 }, () => pile([]));
+  const base = (piles, devilNext = 6) => ({
+    piles, found: SUITS.map((s) => s === 'h' ? [3, 3] : s === 's' ? [13, 12] : [13, 13]),
+    devilNext, stockNext: 2, won: false,
+  });
+  const lay = { stock: [0, 0], devil: [C(4, 'h'), C(1, 'c'), C(1, 'c'), C(1, 'c'), C(1, 'c'), C(13, 's')] };
+  const H = (r) => C(r, 'h');
+  const rest = (r0) => Array.from({ length: 13 - r0 + 1 }, (_, k) => H(13 - k)); // K down to r0, top last
+  test('plays out a pile and the last Devil\'s Six card', () => {
+    const ps = empty();
+    ps[0] = pile(rest(4)); ps[1] = pile(rest(4));
+    const plan = finishPlan(base(ps, 5), lay, true);
+    assert(plan !== null, 'a finish');
+    assertEqual(plan.length, 21);
+    assertEqual(plan.filter((x) => x === 'devil').length, 1);
+  });
+  test('a card under a higher one of its suit: no finish', () => {
+    const ps = empty();
+    ps[0] = pile([...rest(6), H(4), H(5)]); // 5h waits for a 4h, which is under it
+    assertEqual(finishPlan(base(ps, 6), lay, true), null);
+  });
+  test('stock left, or a face-down card in the closed game: no finish', () => {
+    const ps = empty();
+    ps[0] = pile(rest(4)); ps[1] = pile(rest(4));
+    assertEqual(finishPlan({ ...base(ps, 5), stockNext: 1 }, lay, true), null);
+    ps[0] = pile(rest(4), 3);
+    assertEqual(finishPlan(base(ps, 5), lay, true), null);
+    assert(finishPlan(base(ps, 5), lay, false) !== null, 'open: known cards may finish');
   });
 });
 

@@ -151,7 +151,8 @@ Shows every stock card and where it will land.
 - Illegal taps do nothing (a short shake of the card, no message).
 - **Drag and drop** (added 2026-11-01): press a card that can move and drag
   it; it and the cards on it follow the finger, and the legal destinations
-  light up as for a tap. Letting go anywhere over the foundations sends it
+  light up as for a tap; the one it would land on if let go now glows
+  brighter. Letting go anywhere over the foundations sends it
   up if it can go; anywhere over a lit column (its full height) moves it
   there, and the cards slide on from where they were let go. Anywhere else
   they fly back. A press that moves less than 8 px is a tap. The Devil's
@@ -285,8 +286,20 @@ can win it.
 - **Win:** all 104 cards on the foundations. A win by hand ends with a
   burst of confetti (about 3 s; none under reduced motion, none for a game
   the solver finished).
-- **Stuck:** stock empty and no legal moves at all; the game ends as a
-  loss. Otherwise the player can **Resign**.
+- **Finish** (added 2026-11-01): once the stock is gone, every card is
+  known (Closed: no face-down cards) and foundation plays alone can win,
+  the empty stock button turns into *Finish*, which plays the rest up one
+  card at a time (about 6 a second; ordinary moves of the game, so the win
+  counts as a win). Found greedily (`play.js` `finishPlan`: the Devil's Six
+  first, then the piles in order); in rare cases with two copies of a card
+  it can miss a finish that exists, and the player finishes by hand.
+- **Stuck:** stock empty and either no legal moves at all, or (added
+  2026-11-01) **no progress possible**: every move within reach can be
+  taken back for free (section 9), so no card can go up or turn over again.
+  The app explores those free moves after each move once the stock is gone
+  (up to 2,000 positions; a foundation play in reach ends the search). The
+  game ends as a loss, with a message saying which. Otherwise the player
+  can **Resign**.
 - Every game is recorded per seed, finished or not: variant at the start,
   any switch to open (variant and move number), restarts, result (won,
   stuck, resigned, abandoned), moves, take-back counts, start and end
@@ -348,9 +361,11 @@ and at the bottom the app version with its commit and the core version
   won.
 - **Optional automatic play:** safe foundation plays (`safe_auto`).
 - **Four-colour suits** setting.
-- **"No progress possible"** notice when the stock is empty and only
-  reversible moves remain.
 - **Statistics** across seeds and variants.
+- **Keyboard shortcuts** on desktop (take back, deal, hint, cancel a
+  selection). Backlog, 2026-11-01.
+- **One-tap move** setting (off by default): a tap on a card with exactly
+  one destination moves it. Backlog, 2026-11-01.
 
 ## 16. Testing
 

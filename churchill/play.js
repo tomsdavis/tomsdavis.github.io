@@ -57,6 +57,42 @@ export const DOUBLE_TAP_MS = 350;
 export const isDoubleTap = (prev, now) =>
   !!prev && prev.key === now.key && now.t - prev.t <= DOUBLE_TAP_MS;
 
+// ============= Finishing =============
+
+// Once the stock is gone and every card is known (in the closed game: no
+// face-down cards), can foundation plays alone win from here? Returns the
+// plays in order (a pile index, or 'devil' for the next Devil's Six card)
+// or null. Greedy: the Devil's Six first, then the piles in order. The two
+// piles of a suit are interchangeable, so only which copy of a card goes
+// first is a choice; greedy can, rarely, miss a finish that exists (null:
+// the player finishes by hand).
+export const finishPlan = (pos, lay, closed) => {
+  if (pos.won || pos.stockNext < lay.stock.length) return null;
+  if (closed && pos.piles.some((p) => p.down > 0)) return null;
+  const piles = pos.piles.map((p) => p.cards.slice());
+  const found = pos.found.map((f) => f.slice());
+  let devil = pos.devilNext;
+  const slot = (c) => found[SUITS.indexOf(suit(c))].indexOf(rank(c) - 1);
+  const up = (c) => { found[SUITS.indexOf(suit(c))][slot(c)]++; };
+  const plan = [];
+  for (let changed = true; changed;) {
+    changed = false;
+    while (devil < lay.devil.length && slot(lay.devil[devil]) >= 0) {
+      up(lay.devil[devil++]);
+      plan.push('devil');
+      changed = true;
+    }
+    piles.forEach((p, i) => {
+      while (p.length && slot(p[p.length - 1]) >= 0) {
+        up(p.pop());
+        plan.push(i);
+        changed = true;
+      }
+    });
+  }
+  return devil === lay.devil.length && piles.every((p) => !p.length) ? plan : null;
+};
+
 // ============= Version =============
 
 // app-version.txt holds the cache version and the commit of the code, for

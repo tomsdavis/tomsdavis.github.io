@@ -118,6 +118,8 @@ button:disabled { opacity: .4; cursor: default; }
 .stockbtn b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .stockbtn span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 .stockbtn:disabled { background: none; box-shadow: none; border: 1px dashed var(--felt-line); opacity: 1; color: var(--ink-dim); }
+.stockbtn.finish { background: var(--felt-deep); box-shadow: 0 0 0 2px var(--target); color: var(--target); }
+.stockbtn.finish:disabled { border: 0; opacity: .7; }
 .devilrow { flex: none; display: flex; align-items: flex-start; padding: 0 8px 6px; gap: 8px; }
 .landscape .devilrow { padding: 0; flex-wrap: wrap; justify-content: space-between; row-gap: 6px; }
 .stockslot { display: none; width: var(--cw); flex: none; }
@@ -162,6 +164,7 @@ button:disabled { opacity: .4; cursor: default; }
 .slides { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
 .slides .card { cursor: default; }
 /* dragging (app.js): the dragged copies lift off the table */
+.card.target.over, .slot.target.over { box-shadow: 0 0 0 3px var(--target), 0 0 14px 2px var(--target); }
 .slides .card.drag { box-shadow: 0 0 0 .5px rgba(0,0,0,.55), 0 6px 14px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.7); }
 .tableau .card:not(.down), #devil .card { touch-action: none; }
 /* the win (app.js confetti) */
