@@ -316,6 +316,14 @@ describe('Live indicator', () => {
     assertEqual(r.why.kind, 'searched');
     assertEqual(lossText(r.why), "This game can't be won from here: every line of play from here has been searched.");
   });
+  test('solveCurrent runs the same full search, so the menu agrees with the live indicator', () => {
+    core.newGame(3, false);
+    while (core.play(2) >= 0);
+    assertEqual(core.solveCurrent(100_000, 100, 2, 2_000_000).result, 'unknown');
+    const r = core.solveCurrent(100_000, 100, 2, 2_000_000, 1_000_000);
+    assertEqual(r.result, 'lost');
+    assertEqual(r.why.kind, 'searched');
+  });
   test('checkCurrent: the dead-end test proves a loss with no search, naming a card', () => {
     core.newGame(5, false);
     while (core.play(2) >= 0);

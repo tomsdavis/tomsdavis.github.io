@@ -142,13 +142,15 @@ export const loadCore = async (from) => {
     },
     // A winning line from the current position, as moves the player can
     // make, simplified (shortcuts searched `depth` moves ahead, `budget`
-    // moves of work). { result, line }.
-    solveCurrent: (limit, tries, depth, budget) => {
-      const r = w.solve_current(limit, tries, depth, budget);
+    // moves of work). In the last three deals, if no win is found, a full
+    // search of up to `full` positions follows, as in checkCurrent, which
+    // can prove the loss (0: none). { result, line }.
+    solveCurrent: (limit, tries, depth, budget, full = 0) => {
+      const r = w.solve_current(limit, tries, depth, budget, full);
       return answer(r);
     },
     // Can the game in progress still be won? As solveCurrent but the line
-    // is not simplified, so the answer comes sooner. Once the stock is gone,
+    // is not simplified, so the answer comes sooner. In the last three deals,
     // if no win is found, a full search of up to `full` positions follows,
     // which can prove the loss (0: none). { result, line }.
     checkCurrent: (limit, tries, full = 0) => {

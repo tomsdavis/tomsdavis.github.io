@@ -104,7 +104,7 @@ const askSolver = (kind, msg, ms) => new Promise((resolve) => {
   const timer = setTimeout(() => {
     delete pending[kind];
     stopWorker(kind);
-    resolve({ id, result: 'unknown', line: [] });
+    resolve({ id, result: 'unknown', line: [], timedOut: true });
   }, ms);
   pending[kind] = { id, resolve, timer };
   workers[kind].postMessage({ id, kind, ...msg });
@@ -130,8 +130,9 @@ const checkSolvable = async () => {
 // without a search do so (play.js, liveAfterMove), and while the player
 // thinks the worker checks the positions after the other moves.
 const LIVE_LIMIT = 300_000, LIVE_TRIES = 1500, LIVE_MS = 3000;
-// Positions for the full endgame search (stock gone; proves losses): up to
-// about 9 s on a desktop, so within the full budget on most phones.
+// Positions for the full search in the last three deals (proves losses),
+// for the live check and the menu: up to about 9 s on a desktop, so within
+// the full budget on most phones (3,000,000 gained little, 2026-11-02).
 const LIVE_ENDGAME = 1_000_000;
 const live = { cache: new Map(), here: null, probes: null, job: null };
 const isLive = () => settings.solv === 'live';
@@ -641,18 +642,18 @@ const findWinnable = async (variant) => {
 
 // ============= Help from the solver =============
 
-// Why the solver gave no line: which check proved the loss, or that it
-// ran out of time.
+// Why the solver gave no line: which check proved the loss, or that none
+// was found (in the time allowed, if it ran out of time).
 const noLine = (r) => (r.result === 'lost'
   ? lossText(r.why, pos.devilNext < lay.devil.length ? lay.devil[pos.devilNext] : 0)
-  : 'No winning line found from here within 30 s (it may still be winnable).');
+  : `No winning line found from here${r.timedOut ? ' within 30 s' : ''} (it may still be winnable).`);
 
 // Ask the solver for a winning line from here; null if cancelled.
 const findLine = async (what) => {
   if (busy || handsOff() || rec.result) return null;
   busy = what;
   render();
-  const r = await askSolver('line', { game: rec, limit: SOLVE_LIMIT, tries: SOLVE_TRIES, depth: SIMPLIFY_DEPTH, budget: SIMPLIFY_BUDGET }, SOLVE_MS);
+  const r = await askSolver('line', { game: rec, limit: SOLVE_LIMIT, tries: SOLVE_TRIES, depth: SIMPLIFY_DEPTH, budget: SIMPLIFY_BUDGET, full: LIVE_ENDGAME }, SOLVE_MS);
   busy = null;
   // The line is in the player's moves, so the live indicator can use it.
   if (r.result === 'winnable' || r.result === 'lost') {

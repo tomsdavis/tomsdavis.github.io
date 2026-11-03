@@ -235,13 +235,16 @@ can win it.
   *Win not yet found* (amber), *Lost* (red), *Won* (green).
   - Losses are proven three ways (`proofs.rs`, `solver.rs`): the Devil's
     Six order check and the dead-end test (a card that can never reach
-    the foundations; added 2026-10-31) at any time, and in the last two
-    deals (20 stock cards or fewer) a full search (every move under the
+    the foundations; added 2026-10-31) at any time, and in the last three
+    deals (30 stock cards or fewer; two deals, 20 cards, until 2026-11-02)
+    a full search (every move under the
     player's own rules, up to 1,000,000 positions and 100,000 moves deep,
     in the full-budget check, cutting positions the dead-end test proves
     lost). On seeds 1-39 pressing Deal only, Node: red for 37 with the
     stock gone (24 at once), 27 one deal before the end, 13 two deals
-    before; slowest 5.7 s, up to 44 MB. Earlier in the game red is rare
+    before, 6 three deals before (4 without the full search); slowest
+    6.7 s, up to 48 MB. A larger budget (3,000,000) or a fourth deal was
+    measured and gained little for about three times the time. Earlier in the game red is rare
     and amber is the usual sign that a move threw the win away. Amber can
     be a false alarm: the search may just not find the win.
   - No search is needed when the move follows the known winning line,
@@ -309,7 +312,11 @@ can win it.
 ## 12. Help from the solver (added 2026-10-27)
 
 All three ask the core for a winning line from the current position
-(`solve_current`, in the 'line' worker, 30 s budget). The solver's line
+(`solve_current`, in the 'line' worker, 30 s budget). In the last three
+deals, if the solver finds no win, the same full search as the live
+indicator's follows (`LIVE_ENDGAME` positions), so the menu and the
+indicator agree on a proven loss (fixed 2026-11-02: before, the menu said
+"may still be winnable" where the indicator showed *Lost*). The solver's line
 is expanded into moves the player can make (Devil's Six and foundation
 plays explicit) and simplified in the core (`src/simplify.rs` in the
 churchill repo: loops cut, shortcuts searched 2 moves ahead, unneeded
@@ -326,8 +333,9 @@ The live indicator (section 10) also feeds on these lines.
   a second; default 2, also in Settings) and Stop. Stopping hands the game
   back. Once the solver has played, a finished game is recorded as
   *solved*, not won, even if the player finishes it by hand.
-- If no line is found: "can't be won" (Devil's Six order proof) or "no
-  winning line found within 30 s".
+- If no line is found: "can't be won" with the proof's reason, or "No
+  winning line found from here (it may still be winnable)", with "within
+  30 s" only when the search ran out of time.
 - A move or take-back while the solver is working cancels the request.
 
 ## 13. History (added 2026-10-27)
