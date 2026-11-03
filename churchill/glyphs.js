@@ -11,7 +11,9 @@
 export const SUIT_PATH = {
   s: 'M50 4C30 26 6 40 6 60C6 74 17 83 29 83C38 83 45 79 48 72C47 82 43 90 33 96H67C57 90 53 82 52 72C55 79 62 83 71 83C83 83 94 74 94 60C94 40 70 26 50 4Z',
   h: 'M50 90C20 66 5 50 5 31C5 16 16 6 29 6C39 6 46 12 50 21C54 12 61 6 71 6C84 6 95 16 95 31C95 50 80 66 50 90Z',
-  c: 'M30 28a20 20 0 1 0 40 0a20 20 0 1 0-40 0ZM7 59a20 20 0 1 0 40 0a20 20 0 1 0-40 0ZM53 59a20 20 0 1 0 40 0a20 20 0 1 0-40 0ZM37 52a13 13 0 1 0 26 0a13 13 0 1 0-26 0ZM47 56C47 77 43 88 33 96H67C57 88 53 77 53 56Z',
+  // Club: three round lobes with clear notches between them, so it does not
+  // read as a solid blob (like a spade) at phone size.
+  c: 'M31 26a19 19 0 1 0 38 0a19 19 0 1 0 -38 0ZM8 61a19 19 0 1 0 38 0a19 19 0 1 0 -38 0ZM54 61a19 19 0 1 0 38 0a19 19 0 1 0 -38 0ZM41 52a9 9 0 1 0 18 0a9 9 0 1 0 -18 0ZM46 56C46 78 42 88 32 96H68C58 88 54 78 54 56Z',
   d: 'M50 3C61 22 73 37 89 50C73 63 61 78 50 97C39 78 27 63 11 50C27 37 39 22 50 3Z',
 };
 
@@ -50,7 +52,7 @@ export const rankSvg = (r, cls = 'ri') => {
 // ============= Card faces =============
 
 // Ink box of each suit in its 100 x 100 box: [left, top, right, bottom].
-export const SUIT_BOX = { s: [6, 4, 94, 96], h: [5, 6, 95, 90], c: [7, 8, 93, 96], d: [11, 3, 89, 97] };
+export const SUIT_BOX = { s: [6, 4, 94, 96], h: [5, 6, 95, 90], c: [8, 7, 92, 96], d: [11, 3, 89, 97] };
 
 // Face metrics in card widths (a card is 1 x CH): M the margin from the
 // card's edge to the ink of each corner index, H the rank's cap height,

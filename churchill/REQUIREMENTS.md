@@ -447,7 +447,9 @@ bumps `CACHE_NAME` in `sw.js` and adds new files to its asset list.
 1. **Drawn suits and ranks.** `glyphs.js`: the four suits and 13 ranks
    (A, 2-10, J, Q, K) as SVG paths; ranks extracted once from Source
    Serif 4 Bold by a script kept outside the deploy (font and licence
-   noted in a comment). Used on card faces, the Devil's Six, foundation
+   noted in a comment). The club's three lobes are drawn apart, with clear
+   notches, so it is not taken for a spade at a glance (v21; the app icon
+   keeps the first club). Used on card faces, the Devil's Six, foundation
    slots and the stock panel's mini cards. Card names in sentences (hints,
    solver lines) keep text suits, followed by U+FE0E so they are not
    drawn as emoji. Tests: every card value has a path; lookups agree with
