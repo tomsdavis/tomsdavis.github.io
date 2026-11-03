@@ -588,7 +588,7 @@ const stepFinish = () => {
   if (!plan || !legal.includes(code)) { render(); return; }
   finishing = setTimeout(stepFinish, FINISH_MS);
   playCode(code);
-  if (rec.result) stopFinish();
+  if (rec.result) { stopFinish(); render(); }
 };
 const startFinish = () => {
   if (handsOff() || rec.result) return;
@@ -887,7 +887,9 @@ function render() {
   const left = lay.stock.length - pos.stockNext;
   // Once foundation plays alone can win, the empty stock offers to finish.
   const canFinish = !left && !rec.result && !auto && finishPlan(pos, lay, rec.variant === 'closed') !== null;
-  const sb = el('button', `stockbtn ${canFinish ? 'finish' : ''}`, left ? `<b>${left}</b><span>Deal</span>` : canFinish ? `<span>${finishing ? 'Finishing' : 'Finish'}</span>` : '<span>Empty</span>');
+  // While Finish runs the button goes; the bottom bar says Finishing.
+  const sb = el('button', `stockbtn ${canFinish ? 'finish' : ''}`, left ? `<b>${left}</b><span>Deal</span>` : canFinish ? '<span>Finish</span>' : '<span>Empty</span>');
+  sb.hidden = !!finishing;
   sb.disabled = !(left || canFinish) || !!rec.result || handsOff();
   sb.classList.toggle('hint', hintCode === 2);
   sb.dataset.loc = 'stock';
@@ -926,9 +928,9 @@ function render() {
   $('status').innerHTML = `Moves <b>${rec.moves}</b><br>Up <b>${up}</b> / 104<br>Devil's Six left <b>${devilLeft.length}</b>`;
 
   // solver playback bar (before sizing the stock panel, which makes room for it)
-  $('autobar').hidden = !auto && !busy;
+  $('autobar').hidden = !auto && !busy && !finishing;
   $('autoCtl').hidden = !auto;
-  $('autoInfo').textContent = auto ? `Solver: move ${auto.i} of ${auto.line.length}` : busy ? 'Solver thinking' : '';
+  $('autoInfo').textContent = auto ? `Solver: move ${auto.i} of ${auto.line.length}` : busy ? 'Solver thinking' : finishing ? 'Finishing: playing the cards up' : '';
   if (auto) {
     $('autoPause').textContent = auto.paused ? 'Play' : 'Pause';
     $('autoStep').disabled = !auto.paused;
